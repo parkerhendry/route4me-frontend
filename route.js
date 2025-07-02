@@ -15,7 +15,7 @@ geotab.addin.route4me = function () {
     let currentStep = 1;
     
     // Backend URL - Update this to your EC2 instance URL
-    const BACKEND_URL = 'https://traxxisgps.duckdns.org';
+    const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
 
     /**
      * Get current Geotab username using session
