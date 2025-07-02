@@ -18,14 +18,24 @@ geotab.addin.route4me = function () {
     const BACKEND_URL = 'http://traxxisgps.duckdns.org/api';
 
     /**
-     * Get current Geotab username
+     * Get current Geotab username using session
      */
     function getCurrentUsername() {
-        console.log('state:', state);
-        if (state && state.userName) {
-            return state.userName;
-        }
-        return null;
+        return new Promise((resolve, reject) => {
+            if (!api) {
+                reject(new Error('Geotab API not initialized'));
+                return;
+            }
+            
+            api.getSession(function(session) {
+                console.log('session:', session);
+                if (session && session.userName) {
+                    resolve(session.userName);
+                } else {
+                    reject(new Error('Unable to get username from session'));
+                }
+            });
+        });
     }
 
     /**
@@ -72,15 +82,15 @@ geotab.addin.route4me = function () {
      */
     async function validateUser() {
         console.log('Validating user credentials...');
-        console.log('Current state:', state);
-        const username = getCurrentUsername();
-        
-        if (!username) {
-            showAlert('Unable to get Geotab username. Please refresh the page.', 'danger');
-            return;
-        }
         
         try {
+            const username = await getCurrentUsername();
+            
+            if (!username) {
+                showAlert('Unable to get Geotab username. Please refresh the page.', 'danger');
+                return;
+            }
+            
             showLoadingInCard('userValidationCard', 'Validating user credentials...');
             
             const response = await fetch(`${BACKEND_URL}/validate-user`, {
@@ -397,13 +407,14 @@ geotab.addin.route4me = function () {
             return;
         }
         
-        const username = getCurrentUsername();
-        if (!username) {
-            showAlert('Unable to get username. Please refresh the page.', 'danger');
-            return;
-        }
-        
         try {
+            const username = await getCurrentUsername();
+            
+            if (!username) {
+                showAlert('Unable to get username. Please refresh the page.', 'danger');
+                return;
+            }
+            
             showAlert('Creating routes...', 'info');
             
             const response = await fetch(`${BACKEND_URL}/create-routes`, {
