@@ -71,6 +71,8 @@ geotab.addin.route4me = function () {
      * Validate user credentials with Route4Me
      */
     async function validateUser() {
+        console.log('Validating user credentials...');
+        console.log('Current state:', state);
         const username = getCurrentUsername();
         
         if (!username) {
