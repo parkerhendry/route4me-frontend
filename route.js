@@ -90,6 +90,8 @@ geotab.addin.route4me = function () {
                 showAlert('Unable to get Geotab username. Please refresh the page.', 'danger');
                 return;
             }
+
+            console.log('Current username:', username);
             
             showLoadingInCard('userValidationCard', 'Validating user credentials...');
             
