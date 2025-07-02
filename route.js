@@ -21,6 +21,7 @@ geotab.addin.route4me = function () {
      * Get current Geotab username
      */
     function getCurrentUsername() {
+        console.log('state:', state);
         if (state && state.userName) {
             return state.userName;
         }
