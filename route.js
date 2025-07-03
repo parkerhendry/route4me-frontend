@@ -200,15 +200,34 @@ geotab.addin.route4me = function () {
         if (!driverList) return;
         
         const driversHtml = subDrivers.map(driver => `
-            <div class="form-check driver-item">
-                <input class="form-check-input" type="checkbox" value="${driver.member_id}" 
-                       id="driver-${driver.member_id}" onchange="updateDriverSelection()">
-                <label class="form-check-label" for="driver-${driver.member_id}">
-                    <div class="driver-info">
-                        <strong>${driver.member_first_name} ${driver.member_last_name}</strong>
-                        <small class="text-muted d-block">${driver.member_email}</small>
+            <div class="driver-selection-item border rounded p-3 mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="${driver.member_id}" 
+                        id="driver-${driver.member_id}" onchange="updateDriverSelection()">
+                    <label class="form-check-label" for="driver-${driver.member_id}">
+                        <div class="driver-info">
+                            <strong>${driver.member_first_name} ${driver.member_last_name}</strong>
+                            <small class="text-muted d-block">${driver.member_email}</small>
+                        </div>
+                    </label>
+                </div>
+                <div class="starting-location-selection mt-2" id="location-${driver.member_id}" style="display: none;">
+                    <label class="form-label"><strong>Starting Location:</strong></label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="location-${driver.member_id}" 
+                            value="hq" id="hq-${driver.member_id}" onchange="updateDriverSelection()">
+                        <label class="form-check-label" for="hq-${driver.member_id}">
+                            <i class="fas fa-building me-2"></i>HQ
+                        </label>
                     </div>
-                </label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="location-${driver.member_id}" 
+                            value="home" id="home-${driver.member_id}" onchange="updateDriverSelection()">
+                        <label class="form-check-label" for="home-${driver.member_id}">
+                            <i class="fas fa-home me-2"></i>Home
+                        </label>
+                    </div>
+                </div>
             </div>
         `).join('');
         
@@ -223,11 +242,31 @@ geotab.addin.route4me = function () {
         selectedDrivers = [];
         
         checkboxes.forEach(checkbox => {
+            const driverId = checkbox.value;
+            const locationDiv = document.getElementById(`location-${driverId}`);
+            
             if (checkbox.checked) {
-                const driverId = checkbox.value;
+                // Show location selection
+                if (locationDiv) {
+                    locationDiv.style.display = 'block';
+                }
+                
+                // Get selected location
+                const locationRadios = document.querySelectorAll(`input[name="location-${driverId}"]:checked`);
+                const selectedLocation = locationRadios.length > 0 ? locationRadios[0].value : null;
+                
+                // Find driver info
                 const driver = subDrivers.find(d => d.member_id == driverId);
                 if (driver) {
-                    selectedDrivers.push(driver);
+                    selectedDrivers.push({
+                        ...driver,
+                        starting_location: selectedLocation
+                    });
+                }
+            } else {
+                // Hide location selection
+                if (locationDiv) {
+                    locationDiv.style.display = 'none';
                 }
             }
         });
@@ -241,7 +280,9 @@ geotab.addin.route4me = function () {
         }
         
         if (proceedBtn) {
-            proceedBtn.disabled = selectedDrivers.length === 0;
+            // Enable button only if all selected drivers have a starting location
+            const allHaveLocation = selectedDrivers.every(driver => driver.starting_location);
+            proceedBtn.disabled = selectedDrivers.length === 0 || !allHaveLocation;
         }
     }
 
@@ -335,6 +376,9 @@ geotab.addin.route4me = function () {
                 uploadedAddresses = data.addresses;
                 showAlert(`Successfully loaded ${data.count} addresses`, 'success');
                 showFileInfo(file.name, data.count);
+                
+                // Validate driver assignments
+                await validateDriverAssignments();
             } else {
                 throw new Error('File processing failed');
             }
@@ -342,6 +386,70 @@ geotab.addin.route4me = function () {
         } catch (error) {
             console.error('File upload error:', error);
             showAlert(`File upload failed: ${error.message}`, 'danger');
+        }
+    }
+
+    // New function to validate driver assignments
+    async function validateDriverAssignments() {
+        try {
+            const driverEmails = selectedDrivers.map(driver => driver.member_email);
+            
+            const response = await fetch(`${BACKEND_URL}/validate-driver-assignments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    selected_drivers: driverEmails,
+                    addresses: uploadedAddresses
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                if (data.fully_covered) {
+                    showAlert('All problem types can be handled by selected drivers', 'success');
+                } else {
+                    showAlert(`Warning: ${data.uncovered_types.length} problem types cannot be handled by selected drivers`, 'warning');
+                    console.log('Uncovered problem types:', data.uncovered_types);
+                }
+                
+                // Show coverage details
+                showCoverageDetails(data.coverage);
+            }
+            
+        } catch (error) {
+            console.error('Driver assignment validation error:', error);
+            // Don't show error - this is just for information
+        }
+    }
+
+    // New function to show coverage details
+    function showCoverageDetails(coverage) {
+        const fileInfo = document.getElementById('fileInfo');
+        if (!fileInfo) return;
+        
+        let coverageHtml = '<div class="mt-3"><h6>Problem Type Coverage:</h6>';
+        
+        for (const [problemType, info] of Object.entries(coverage)) {
+            const badgeClass = info.count > 0 ? 'bg-success' : 'bg-danger';
+            coverageHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span>${problemType} (${info.addresses_count} addresses)</span>
+                    <span class="badge ${badgeClass}">${info.count} drivers</span>
+                </div>
+            `;
+        }
+        
+        coverageHtml += '</div>';
+        
+        // Add to file info
+        const existingCoverage = fileInfo.querySelector('.coverage-details');
+        if (existingCoverage) {
+            existingCoverage.innerHTML = coverageHtml;
+        } else {
+            fileInfo.insertAdjacentHTML('beforeend', `<div class="coverage-details">${coverageHtml}</div>`);
         }
     }
 
@@ -384,21 +492,57 @@ geotab.addin.route4me = function () {
         
         if (selectedDriversList) {
             const driversHtml = selectedDrivers.map(driver => `
-                <div class="driver-summary-item">
-                    <i class="fas fa-user me-2"></i>
-                    ${driver.member_first_name} ${driver.member_last_name}
+                <div class="driver-summary-item mb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-user me-2"></i>
+                            <strong>${driver.member_first_name} ${driver.member_last_name}</strong>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted d-block">${driver.member_email}</small>
+                            <span class="badge bg-primary">
+                                <i class="fas fa-${driver.starting_location === 'hq' ? 'building' : 'home'} me-1"></i>
+                                ${driver.starting_location?.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
                 </div>
             `).join('');
             selectedDriversList.innerHTML = driversHtml;
         }
         
         if (addressesSummary) {
-            addressesSummary.innerHTML = `
+            // Group addresses by problem type
+            const problemTypes = {};
+            uploadedAddresses.forEach(addr => {
+                const type = addr.problem_type;
+                if (!problemTypes[type]) {
+                    problemTypes[type] = 0;
+                }
+                problemTypes[type]++;
+            });
+            
+            let summaryHtml = `
                 <div class="addresses-summary">
-                    <i class="fas fa-map-marker-alt me-2"></i>
-                    ${uploadedAddresses.length} addresses ready for routing
-                </div>
+                    <div class="mb-2">
+                        <i class="fas fa-map-marker-alt me-2"></i>
+                        <strong>${uploadedAddresses.length} total addresses</strong>
+                    </div>
+                    <div class="problem-types">
+                        <h6>Problem Types:</h6>
             `;
+            
+            for (const [type, count] of Object.entries(problemTypes)) {
+                summaryHtml += `
+                    <div class="d-flex justify-content-between">
+                        <span>${type}</span>
+                        <span class="badge bg-secondary">${count}</span>
+                    </div>
+                `;
+            }
+            
+            summaryHtml += '</div></div>';
+            addressesSummary.innerHTML = summaryHtml;
         }
     }
 
@@ -408,6 +552,13 @@ geotab.addin.route4me = function () {
     async function createRoutes() {
         if (selectedDrivers.length === 0 || uploadedAddresses.length === 0) {
             showAlert('Please select drivers and upload addresses first.', 'warning');
+            return;
+        }
+        
+        // Validate all drivers have starting locations
+        const driversWithoutLocation = selectedDrivers.filter(driver => !driver.starting_location);
+        if (driversWithoutLocation.length > 0) {
+            showAlert('Please select starting locations for all drivers.', 'warning');
             return;
         }
         
@@ -421,6 +572,12 @@ geotab.addin.route4me = function () {
             
             showAlert('Creating routes...', 'info');
             
+            // Format drivers for API
+            const formattedDrivers = selectedDrivers.map(driver => ({
+                email: driver.member_email,
+                starting_location: driver.starting_location
+            }));
+            
             const response = await fetch(`${BACKEND_URL}/create-routes`, {
                 method: 'POST',
                 headers: {
@@ -428,7 +585,7 @@ geotab.addin.route4me = function () {
                 },
                 body: JSON.stringify({
                     username: username,
-                    selected_drivers: selectedDrivers,
+                    selected_drivers: formattedDrivers,
                     addresses: uploadedAddresses
                 })
             });
@@ -459,17 +616,86 @@ geotab.addin.route4me = function () {
         const resultsDiv = document.getElementById('routeCreationResults');
         if (!resultsDiv) return;
         
-        const resultsHtml = `
-            <div class="alert alert-success">
+        let resultsHtml = `
+            <div class="alert alert-success mb-3">
                 <h6><i class="fas fa-check-circle me-2"></i>Route Creation Summary</h6>
-                <p><strong>Drivers:</strong> ${data.drivers_count}</p>
-                <p><strong>Addresses:</strong> ${data.addresses_count}</p>
-                <p class="mb-0">${data.message}</p>
+                <p><strong>Total Routes Created:</strong> ${data.total_routes}</p>
             </div>
         `;
         
+        // Show individual route results
+        if (data.created_routes && data.created_routes.length > 0) {
+            resultsHtml += '<div class="route-results">';
+            
+            data.created_routes.forEach(route => {
+                if (route.status === 'success') {
+                    resultsHtml += `
+                        <div class="card mb-2">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="fas fa-route me-2"></i>${route.driver}
+                                    <span class="badge bg-success ms-2">Success</span>
+                                </h6>
+                                <p class="card-text">
+                                    <strong>Starting Location:</strong> ${route.starting_location?.toUpperCase()}<br>
+                                    <strong>Addresses:</strong> ${route.addresses_count}<br>
+                                    <strong>Route ID:</strong> ${route.route_id || 'N/A'}
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultsHtml += `
+                        <div class="card mb-2">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>${route.driver}
+                                    <span class="badge bg-danger ms-2">Failed</span>
+                                </h6>
+                                <p class="card-text text-danger">
+                                    <strong>Error:</strong> ${route.error}
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            resultsHtml += '</div>';
+        }
+        
         resultsDiv.innerHTML = resultsHtml;
         resultsDiv.classList.remove('hidden');
+    }
+
+    // New function to get available drivers from backend
+    async function getAvailableDrivers() {
+        try {
+            const response = await fetch(`${BACKEND_URL}/get-drivers`);
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                return data.drivers;
+            } else {
+                console.error('Failed to get available drivers:', data.error);
+                return [];
+            }
+        } catch (error) {
+            console.error('Error fetching available drivers:', error);
+            return [];
+        }
+    }
+
+    // Add the styles to the page
+    function addAdditionalStyles() {
+        const style = document.createElement('style');
+        style.textContent = additionalStyles;
+        document.head.appendChild(style);
+    }
+
+    function initializeAppWithStyles() {
+        addAdditionalStyles();
+        initializeApp();
     }
 
     /**
@@ -605,7 +831,7 @@ geotab.addin.route4me = function () {
             }
             
             // Initialize the app
-            initializeApp();
+            initializeAppWithStyles();
         },
 
         /**
