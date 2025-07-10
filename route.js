@@ -911,8 +911,27 @@ geotab.addin.route4me = function () {
 
     // Add the styles to the page
     function addAdditionalStyles() {
+        // Check if styles are already added
+        if (document.getElementById('route4me-custom-styles')) {
+            return;
+        }
+        
         const style = document.createElement('style');
-        style.textContent = additionalStyles;
+        style.id = 'route4me-custom-styles';
+        style.textContent = `
+            /* Add any additional dynamic styles here if needed */
+            .btn-primary.btn-lg {
+                padding: 12px 24px;
+                font-size: 1.1rem;
+                font-weight: 600;
+            }
+            
+            .btn-success.btn-lg {
+                padding: 12px 24px;
+                font-size: 1.1rem;
+                font-weight: 600;
+            }
+        `;
         document.head.appendChild(style);
     }
 
