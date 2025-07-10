@@ -373,12 +373,10 @@ geotab.addin.route4me = function () {
             }
             
             if (data.success) {
-                uploadedAddresses = data.addresses;
-                showAlert(`Successfully loaded ${data.count} addresses`, 'success');
-                showFileInfo(file.name, data.count);
+                showAlert(`Successfully loaded ${data.count} addresses. Validating geocoding...`, 'info');
                 
-                // Validate driver assignments
-                await validateDriverAssignments();
+                // Validate addresses with geocoding
+                await validateAddresses(data.addresses, file.name);
             } else {
                 throw new Error('File processing failed');
             }
@@ -386,6 +384,231 @@ geotab.addin.route4me = function () {
         } catch (error) {
             console.error('File upload error:', error);
             showAlert(`File upload failed: ${error.message}`, 'danger');
+        }
+    }
+
+    /**
+     * Validate addresses by geocoding them
+     */
+    async function validateAddresses(addresses, fileName) {
+        try {
+            const username = await getCurrentUsername();
+            
+            if (!username) {
+                showAlert('Unable to get username. Please refresh the page.', 'danger');
+                return;
+            }
+            
+            const response = await fetch(`${BACKEND_URL}/validate-addresses`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    addresses: addresses
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Address validation failed');
+            }
+            
+            if (data.success) {
+                if (data.invalid_count > 0) {
+                    showAlert(`${data.invalid_count} addresses need correction. Please review and correct them.`, 'warning');
+                    showAddressValidationForm(data.valid_addresses, data.invalid_addresses, fileName);
+                } else {
+                    uploadedAddresses = data.valid_addresses;
+                    showAlert(`All ${data.valid_count} addresses validated successfully!`, 'success');
+                    showFileInfo(fileName, data.valid_count);
+                    await validateDriverAssignments();
+                }
+            } else {
+                throw new Error('Address validation failed');
+            }
+            
+        } catch (error) {
+            console.error('Address validation error:', error);
+            showAlert(`Address validation failed: ${error.message}`, 'danger');
+        }
+    }
+
+    /**
+     * Show address validation form for invalid addresses
+     */
+    function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
+        const fileInfo = document.getElementById('fileInfo');
+        if (!fileInfo) return;
+        
+        fileInfo.classList.remove('hidden');
+        
+        const validCount = validAddresses.length;
+        const invalidCount = invalidAddresses.length;
+        
+        let formHtml = `
+            <div class="address-validation-section">
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Address Validation Results</h6>
+                    <p>
+                        <strong>File:</strong> ${fileName}<br>
+                        <strong>Valid Addresses:</strong> ${validCount}<br>
+                        <strong>Invalid Addresses:</strong> ${invalidCount} (need correction)
+                    </p>
+                </div>
+                
+                <div class="invalid-addresses-form">
+                    <h6>Please correct the following addresses:</h6>
+                    <div class="invalid-addresses-list">
+        `;
+        
+        invalidAddresses.forEach((address, index) => {
+            formHtml += `
+                <div class="invalid-address-item card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="card-title">${address.builder_name} - ${address.problem_type}</h6>
+                                <p class="text-muted mb-2">
+                                    <strong>Original:</strong> ${address.address}<br>
+                                    <strong>Confidence:</strong> ${address.confidence || 'Failed to geocode'}
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Corrected Address:</label>
+                                <input type="text" class="form-control corrected-address" 
+                                    id="corrected-${index}" 
+                                    value="${address.address}"
+                                    placeholder="Enter corrected address">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        formHtml += `
+                    </div>
+                    <div class="text-end mt-3">
+                        <button class="btn btn-secondary me-2" onclick="cancelAddressCorrection()">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
+                        <button class="btn btn-primary" onclick="submitCorrectedAddresses()">
+                            <i class="fas fa-check me-2"></i>Validate Corrections
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('fileDetails').innerHTML = formHtml;
+        
+        // Store data for later use
+        window.validAddresses = validAddresses;
+        window.invalidAddresses = invalidAddresses;
+    }
+
+    /**
+     * Cancel address correction and go back to file upload
+     */
+    function cancelAddressCorrection() {
+        const fileInfo = document.getElementById('fileInfo');
+        if (fileInfo) {
+            fileInfo.classList.add('hidden');
+        }
+        
+        // Reset file input
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+        // Clear stored data
+        window.validAddresses = null;
+        window.invalidAddresses = null;
+        
+        showAlert('Address correction cancelled. Please upload a new file.', 'info');
+    }
+
+    /**
+     * Submit corrected addresses for re-validation
+     */
+    async function submitCorrectedAddresses() {
+        try {
+            const username = await getCurrentUsername();
+            
+            if (!username) {
+                showAlert('Unable to get username. Please refresh the page.', 'danger');
+                return;
+            }
+            
+            const correctedAddresses = [];
+            const invalidAddresses = window.invalidAddresses || [];
+            
+            // Collect corrected addresses
+            invalidAddresses.forEach((address, index) => {
+                const correctedInput = document.getElementById(`corrected-${index}`);
+                if (correctedInput) {
+                    correctedAddresses.push({
+                        corrected_address: correctedInput.value.trim(),
+                        original_data: address
+                    });
+                }
+            });
+            
+            if (correctedAddresses.length === 0) {
+                showAlert('No corrected addresses to validate.', 'warning');
+                return;
+            }
+            
+            showAlert('Validating corrected addresses...', 'info');
+            
+            const response = await fetch(`${BACKEND_URL}/retry-geocoding`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    corrected_addresses: correctedAddresses
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Address correction failed');
+            }
+            
+            if (data.success) {
+                const results = data.results;
+                const stillInvalid = results.filter(r => r.status === 'success' && r.confidence !== 'high');
+                const nowValid = results.filter(r => r.status === 'success' && r.confidence === 'high');
+                const failed = results.filter(r => r.status !== 'success');
+                
+                if (stillInvalid.length > 0 || failed.length > 0) {
+                    // Some addresses still need correction
+                    const allValid = (window.validAddresses || []).concat(nowValid);
+                    const allInvalid = stillInvalid.concat(failed);
+                    
+                    showAlert(`${nowValid.length} addresses corrected. ${allInvalid.length} still need attention.`, 'warning');
+                    showAddressValidationForm(allValid, allInvalid, 'Corrected File');
+                } else {
+                    // All addresses are now valid
+                    uploadedAddresses = (window.validAddresses || []).concat(nowValid);
+                    showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
+                    showFileInfo('Corrected File', uploadedAddresses.length);
+                    await validateDriverAssignments();
+                }
+            } else {
+                throw new Error('Address correction failed');
+            }
+            
+        } catch (error) {
+            console.error('Address correction error:', error);
+            showAlert(`Address correction failed: ${error.message}`, 'danger');
         }
     }
 
@@ -800,6 +1023,8 @@ geotab.addin.route4me = function () {
     window.proceedToAddressUpload = proceedToAddressUpload;
     window.proceedToRouteCreation = proceedToRouteCreation;
     window.createRoutes = createRoutes;
+    window.submitCorrectedAddresses = submitCorrectedAddresses;
+    window.cancelAddressCorrection = cancelAddressCorrection;
 
     return {
         /**
