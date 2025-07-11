@@ -455,12 +455,15 @@ geotab.addin.route4me = function () {
                     <p>
                         <strong>File:</strong> ${fileName}<br>
                         <strong>Valid Addresses:</strong> ${validCount}<br>
-                        <strong>Invalid Addresses:</strong> ${invalidCount} (need correction)
+                        <strong>Addresses Needing Attention:</strong> ${invalidCount}
+                    </p>
+                    <p class="mb-0">
+                        <strong>Route4Me is not fully confident in the location of these addresses, could you be more specific?</strong>
                     </p>
                 </div>
                 
                 <div class="invalid-addresses-form">
-                    <h6>Please correct the following addresses:</h6>
+                    <h6>Please review the following addresses:</h6>
                     <div class="invalid-addresses-list">
         `;
         
@@ -472,16 +475,16 @@ geotab.addin.route4me = function () {
                             <div class="col-md-6">
                                 <h6 class="card-title">${address.builder_name} - ${address.problem_type}</h6>
                                 <p class="text-muted mb-2">
-                                    <strong>Original:</strong> ${address.address}<br>
-                                    <strong>Confidence:</strong> ${address.confidence || 'Failed to geocode'}
+                                    <strong>Address:</strong> ${address.address}<br>
+                                    <strong>Confidence:</strong> ${address.confidence || 'Low confidence'}
                                 </p>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Corrected Address:</label>
+                                <label class="form-label">More Specific Address (Optional):</label>
                                 <input type="text" class="form-control corrected-address" 
                                     id="corrected-${index}" 
                                     value="${address.address}"
-                                    placeholder="Enter corrected address">
+                                    placeholder="Enter more specific address (optional)">
                             </div>
                         </div>
                     </div>
@@ -491,13 +494,18 @@ geotab.addin.route4me = function () {
         
         formHtml += `
                     </div>
-                    <div class="text-end mt-3">
-                        <button class="btn btn-secondary me-2" onclick="cancelAddressCorrection()">
+                    <div class="d-flex justify-content-between mt-3">
+                        <button class="btn btn-secondary" onclick="cancelAddressCorrection()">
                             <i class="fas fa-times me-2"></i>Cancel
                         </button>
-                        <button class="btn btn-primary" onclick="submitCorrectedAddresses()">
-                            <i class="fas fa-check me-2"></i>Validate Corrections
-                        </button>
+                        <div>
+                            <button class="btn btn-warning me-2" onclick="proceedWithCurrentAddresses()">
+                                <i class="fas fa-forward me-2"></i>Proceed with Current Addresses
+                            </button>
+                            <button class="btn btn-primary" onclick="submitCorrectedAddresses()">
+                                <i class="fas fa-check me-2"></i>Validate Corrections
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -547,10 +555,10 @@ geotab.addin.route4me = function () {
             const correctedAddresses = [];
             const invalidAddresses = window.invalidAddresses || [];
             
-            // Collect corrected addresses
+            // Collect corrected addresses (only those that were actually modified)
             invalidAddresses.forEach((address, index) => {
                 const correctedInput = document.getElementById(`corrected-${index}`);
-                if (correctedInput) {
+                if (correctedInput && correctedInput.value.trim() !== address.address) {
                     correctedAddresses.push({
                         corrected_address: correctedInput.value.trim(),
                         original_data: address
@@ -559,11 +567,11 @@ geotab.addin.route4me = function () {
             });
             
             if (correctedAddresses.length === 0) {
-                showAlert('No corrected addresses to validate.', 'warning');
+                showAlert('No corrections were made. Use "Proceed with Current Addresses" if you want to continue as-is.', 'info');
                 return;
             }
             
-            showAlert('Validating corrected addresses...', 'info');
+            showAlert(`Validating ${correctedAddresses.length} corrected addresses...`, 'info');
             
             const response = await fetch(`${BACKEND_URL}/retry-geocoding`, {
                 method: 'POST',
@@ -588,18 +596,29 @@ geotab.addin.route4me = function () {
                 const nowValid = results.filter(r => r.status === 'success' && r.confidence === 'high');
                 const failed = results.filter(r => r.status !== 'success');
                 
-                if (stillInvalid.length > 0 || failed.length > 0) {
-                    // Some addresses still need correction
+                // Keep unchanged addresses from original invalid list
+                const unchangedAddresses = invalidAddresses.filter((address, index) => {
+                    const correctedInput = document.getElementById(`corrected-${index}`);
+                    return !correctedInput || correctedInput.value.trim() === address.address;
+                });
+                
+                if (stillInvalid.length > 0 || failed.length > 0 || unchangedAddresses.length > 0) {
+                    // Some addresses still need attention
                     const allValid = (window.validAddresses || []).concat(nowValid);
-                    const allInvalid = stillInvalid.concat(failed);
+                    const allInvalid = [...stillInvalid, ...failed, ...unchangedAddresses];
                     
-                    showAlert(`${nowValid.length} addresses corrected. ${allInvalid.length} still need attention.`, 'warning');
-                    showAddressValidationForm(allValid, allInvalid, 'Corrected File');
+                    showAlert(`${nowValid.length} addresses improved. ${allInvalid.length} still need attention.`, 'warning');
+                    showAddressValidationForm(allValid, allInvalid, 'Updated File');
                 } else {
                     // All addresses are now valid
                     uploadedAddresses = (window.validAddresses || []).concat(nowValid);
                     showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
                     showFileInfo('Corrected File', uploadedAddresses.length);
+                    
+                    // Clear stored data
+                    window.validAddresses = null;
+                    window.invalidAddresses = null;
+                    
                     await validateDriverAssignments();
                 }
             } else {
@@ -609,6 +628,41 @@ geotab.addin.route4me = function () {
         } catch (error) {
             console.error('Address correction error:', error);
             showAlert(`Address correction failed: ${error.message}`, 'danger');
+        }
+    }
+
+    /**
+     * Proceed with current addresses without corrections
+     */
+    function proceedWithCurrentAddresses() {
+        try {
+            // Combine valid addresses with invalid ones (as-is)
+            const validAddresses = window.validAddresses || [];
+            const invalidAddresses = window.invalidAddresses || [];
+            
+            uploadedAddresses = [...validAddresses, ...invalidAddresses];
+            
+            const totalCount = uploadedAddresses.length;
+            const invalidCount = invalidAddresses.length;
+            
+            showAlert(`Proceeding with ${totalCount} addresses (${invalidCount} with low confidence)`, 'warning');
+            
+            // Clear the validation form
+            const fileInfo = document.getElementById('fileInfo');
+            if (fileInfo) {
+                showFileInfo('Current File', totalCount);
+            }
+            
+            // Clear stored data
+            window.validAddresses = null;
+            window.invalidAddresses = null;
+            
+            // Validate driver assignments
+            validateDriverAssignments();
+            
+        } catch (error) {
+            console.error('Error proceeding with current addresses:', error);
+            showAlert('Error proceeding with addresses. Please try again.', 'danger');
         }
     }
 
