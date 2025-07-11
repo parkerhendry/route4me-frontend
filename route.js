@@ -1098,6 +1098,7 @@ geotab.addin.route4me = function () {
     window.createRoutes = createRoutes;
     window.submitCorrectedAddresses = submitCorrectedAddresses;
     window.cancelAddressCorrection = cancelAddressCorrection;
+    window.proceedWithCurrentAddresses = proceedWithCurrentAddresses;
 
     return {
         /**
