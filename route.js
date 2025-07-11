@@ -199,39 +199,82 @@ geotab.addin.route4me = function () {
         const driverList = document.getElementById('driverList');
         if (!driverList) return;
         
-        const driversHtml = subDrivers.map(driver => `
-            <div class="driver-selection-item border rounded p-3 mb-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" value="${driver.member_id}" 
-                        id="driver-${driver.member_id}" onchange="updateDriverSelection()">
-                    <label class="form-check-label" for="driver-${driver.member_id}">
-                        <div class="driver-info">
-                            <strong>${driver.member_first_name} ${driver.member_last_name}</strong>
-                            <small class="text-muted d-block">${driver.member_email}</small>
-                        </div>
-                    </label>
+        // Add search bar
+        const searchHtml = `
+            <div class="driver-search mb-3">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" id="driverSearch" 
+                        placeholder="Search drivers by name or email..." 
+                        onkeyup="filterDrivers()">
                 </div>
-                <div class="starting-location-selection mt-2" id="location-${driver.member_id}" style="display: none;">
-                    <label class="form-label"><strong>Starting Location:</strong></label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="location-${driver.member_id}" 
-                            value="hq" id="hq-${driver.member_id}" onchange="updateDriverSelection()">
-                        <label class="form-check-label" for="hq-${driver.member_id}">
-                            <i class="fas fa-building me-2"></i>HQ
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="location-${driver.member_id}" 
-                            value="home" id="home-${driver.member_id}" onchange="updateDriverSelection()">
-                        <label class="form-check-label" for="home-${driver.member_id}">
-                            <i class="fas fa-home me-2"></i>Home
-                        </label>
+            </div>
+            <div id="driverListContainer">
+        `;
+        
+        const driversHtml = subDrivers.map(driver => `
+            <div class="driver-selection-item card mb-3" data-driver-name="${driver.member_first_name} ${driver.member_last_name}" data-driver-email="${driver.member_email}">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="${driver.member_id}" 
+                                    id="driver-${driver.member_id}" onchange="updateDriverSelection()">
+                                <label class="form-check-label" for="driver-${driver.member_id}">
+                                    <div class="driver-info">
+                                        <strong><i class="fas fa-user me-2"></i>${driver.member_first_name} ${driver.member_last_name}</strong>
+                                        <div class="text-muted mt-1">
+                                            <i class="fas fa-envelope me-1"></i>${driver.member_email}
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="starting-location-selection" id="location-${driver.member_id}" style="display: none;">
+                                <label class="form-label fw-bold mb-2">
+                                    <i class="fas fa-map-marker-alt me-1"></i>Starting Location:
+                                </label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="location-${driver.member_id}" 
+                                        value="hq" id="hq-${driver.member_id}" onchange="updateDriverSelection()">
+                                    <label class="btn btn-outline-primary" for="hq-${driver.member_id}">
+                                        <i class="fas fa-building me-2"></i>HQ
+                                    </label>
+                                    
+                                    <input type="radio" class="btn-check" name="location-${driver.member_id}" 
+                                        value="home" id="home-${driver.member_id}" onchange="updateDriverSelection()">
+                                    <label class="btn btn-outline-primary" for="home-${driver.member_id}">
+                                        <i class="fas fa-home me-2"></i>Home
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         `).join('');
         
-        driverList.innerHTML = driversHtml;
+        driverList.innerHTML = searchHtml + driversHtml + '</div>';
+    }
+
+    // New function to filter drivers based on search
+    function filterDrivers() {
+        const searchTerm = document.getElementById('driverSearch').value.toLowerCase();
+        const driverItems = document.querySelectorAll('.driver-selection-item');
+        
+        driverItems.forEach(item => {
+            const driverName = item.getAttribute('data-driver-name').toLowerCase();
+            const driverEmail = item.getAttribute('data-driver-email').toLowerCase();
+            
+            if (driverName.includes(searchTerm) || driverEmail.includes(searchTerm)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
     }
 
     /**
@@ -399,6 +442,9 @@ geotab.addin.route4me = function () {
                 return;
             }
             
+            // Show loading indicator
+            showLoadingIndicator('Validating addresses with Route4Me geocoding...');
+            
             const response = await fetch(`${BACKEND_URL}/validate-addresses`, {
                 method: 'POST',
                 headers: {
@@ -411,6 +457,9 @@ geotab.addin.route4me = function () {
             });
             
             const data = await response.json();
+            
+            // Hide loading indicator
+            hideLoadingIndicator();
             
             if (!response.ok) {
                 throw new Error(data.error || 'Address validation failed');
@@ -431,6 +480,7 @@ geotab.addin.route4me = function () {
             }
             
         } catch (error) {
+            hideLoadingIndicator();
             console.error('Address validation error:', error);
             showAlert(`Address validation failed: ${error.message}`, 'danger');
         }
@@ -571,7 +621,8 @@ geotab.addin.route4me = function () {
                 return;
             }
             
-            showAlert(`Validating ${correctedAddresses.length} corrected addresses...`, 'info');
+            // Show loading indicator
+            showLoadingIndicator(`Validating ${correctedAddresses.length} corrected addresses...`);
             
             const response = await fetch(`${BACKEND_URL}/retry-geocoding`, {
                 method: 'POST',
@@ -585,6 +636,9 @@ geotab.addin.route4me = function () {
             });
             
             const data = await response.json();
+            
+            // Hide loading indicator
+            hideLoadingIndicator();
             
             if (!response.ok) {
                 throw new Error(data.error || 'Address correction failed');
@@ -626,6 +680,7 @@ geotab.addin.route4me = function () {
             }
             
         } catch (error) {
+            hideLoadingIndicator();
             console.error('Address correction error:', error);
             showAlert(`Address correction failed: ${error.message}`, 'danger');
         }
@@ -760,6 +815,31 @@ geotab.addin.route4me = function () {
         showRouteSummary();
     }
 
+    function showLoadingIndicator(message) {
+        // Remove existing loading indicator if present
+        hideLoadingIndicator();
+        
+        const loadingHtml = `
+            <div id="global-loading-indicator" class="loading-overlay">
+                <div class="loading-content">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 mb-0 fw-bold">${message}</p>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+    }
+
+    function hideLoadingIndicator() {
+        const loadingIndicator = document.getElementById('global-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+    }
+
     /**
      * Show route creation summary
      */
@@ -769,18 +849,22 @@ geotab.addin.route4me = function () {
         
         if (selectedDriversList) {
             const driversHtml = selectedDrivers.map(driver => `
-                <div class="driver-summary-item mb-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="fas fa-user me-2"></i>
-                            <strong>${driver.member_first_name} ${driver.member_last_name}</strong>
-                        </div>
-                        <div class="text-end">
-                            <small class="text-muted d-block">${driver.member_email}</small>
-                            <span class="badge bg-primary">
-                                <i class="fas fa-${driver.starting_location === 'hq' ? 'building' : 'home'} me-1"></i>
-                                ${driver.starting_location?.toUpperCase()}
-                            </span>
+                <div class="driver-summary-item card mb-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-user me-2 text-primary"></i>
+                                <strong>${driver.member_first_name} ${driver.member_last_name}</strong>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="fas fa-envelope me-1"></i>${driver.member_email}
+                                </small>
+                                <span class="badge bg-primary">
+                                    <i class="fas fa-${driver.starting_location === 'hq' ? 'building' : 'home'} me-1"></i>
+                                    ${driver.starting_location?.toUpperCase()}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -801,24 +885,58 @@ geotab.addin.route4me = function () {
             
             let summaryHtml = `
                 <div class="addresses-summary">
-                    <div class="mb-2">
-                        <i class="fas fa-map-marker-alt me-2"></i>
-                        <strong>${uploadedAddresses.length} total addresses</strong>
-                    </div>
-                    <div class="problem-types">
-                        <h6>Problem Types:</h6>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <i class="fas fa-map-marker-alt text-success" style="font-size: 2rem;"></i>
+                                <h5 class="mt-2 mb-0">${uploadedAddresses.length} Total Addresses</h5>
+                            </div>
+                            
+                            <h6 class="mb-3">
+                                <i class="fas fa-chart-pie me-2"></i>Problem Types Distribution:
+                            </h6>
+                            
+                            <div class="problem-types-grid">
             `;
             
+            // Create color classes for different problem types
+            const colors = ['primary', 'success', 'info', 'warning', 'secondary', 'dark'];
+            let colorIndex = 0;
+            
             for (const [type, count] of Object.entries(problemTypes)) {
+                const percentage = ((count / uploadedAddresses.length) * 100).toFixed(1);
+                const color = colors[colorIndex % colors.length];
+                colorIndex++;
+                
                 summaryHtml += `
-                    <div class="d-flex justify-content-between">
-                        <span>${type}</span>
-                        <span class="badge bg-secondary">${count}</span>
+                    <div class="problem-type-item mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <div class="problem-type-icon me-2">
+                                    <i class="fas fa-tools text-${color}"></i>
+                                </div>
+                                <div>
+                                    <strong>${type}</strong>
+                                    <small class="text-muted d-block">${percentage}% of total</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-${color} badge-lg">${count}</span>
+                        </div>
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-${color}" role="progressbar" 
+                                style="width: ${percentage}%"></div>
+                        </div>
                     </div>
                 `;
             }
             
-            summaryHtml += '</div></div>';
+            summaryHtml += `
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
             addressesSummary.innerHTML = summaryHtml;
         }
     }
@@ -847,7 +965,8 @@ geotab.addin.route4me = function () {
                 return;
             }
             
-            showAlert('Creating routes...', 'info');
+            // Show loading indicator
+            showLoadingIndicator('Creating optimized routes with Route4Me...');
             
             // Format drivers for API
             const formattedDrivers = selectedDrivers.map(driver => ({
@@ -869,6 +988,9 @@ geotab.addin.route4me = function () {
             
             const data = await response.json();
             
+            // Hide loading indicator
+            hideLoadingIndicator();
+            
             if (!response.ok) {
                 throw new Error(data.error || 'Route creation failed');
             }
@@ -881,6 +1003,7 @@ geotab.addin.route4me = function () {
             }
             
         } catch (error) {
+            hideLoadingIndicator();
             console.error('Route creation error:', error);
             showAlert(`Route creation failed: ${error.message}`, 'danger');
         }
@@ -1099,6 +1222,7 @@ geotab.addin.route4me = function () {
     window.submitCorrectedAddresses = submitCorrectedAddresses;
     window.cancelAddressCorrection = cancelAddressCorrection;
     window.proceedWithCurrentAddresses = proceedWithCurrentAddresses;
+    window.filterDrivers = filterDrivers;
 
     return {
         /**

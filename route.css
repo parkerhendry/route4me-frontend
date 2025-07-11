@@ -423,3 +423,243 @@
 ::-webkit-scrollbar-thumb:hover {
     background: var(--dark-orange);
 }
+/* Add these styles to your existing route.css file */
+
+/* Driver search styling */
+.driver-search .input-group-text {
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.driver-search input {
+    border-color: #dee2e6;
+}
+
+.driver-search input:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Enhanced driver selection styling */
+.driver-selection-item {
+    transition: all 0.3s ease;
+    border: 1px solid #dee2e6;
+}
+
+.driver-selection-item:hover {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transform: translateY(-1px);
+}
+
+.driver-selection-item .form-check-input:checked ~ .form-check-label {
+    color: #0d6efd;
+}
+
+.driver-info strong {
+    color: #495057;
+    font-size: 1.1rem;
+}
+
+/* Starting location button group styling */
+.starting-location-selection .btn-group {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.starting-location-selection .btn-check:checked + .btn-outline-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+
+.starting-location-selection .btn-outline-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+    color: white;
+}
+
+/* Global loading indicator */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-content {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    max-width: 400px;
+}
+
+.loading-content p {
+    color: #495057;
+    font-size: 1.1rem;
+}
+
+/* Enhanced address summary styling */
+.addresses-summary .card {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.problem-types-grid {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.problem-type-item {
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    background-color: #f8f9fa;
+    transition: background-color 0.2s ease;
+}
+
+.problem-type-item:hover {
+    background-color: #e9ecef;
+}
+
+.problem-type-icon {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+}
+
+.badge-lg {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+}
+
+/* Enhanced driver summary styling */
+.driver-summary-item .card {
+    border: 1px solid #dee2e6;
+    transition: box-shadow 0.2s ease;
+}
+
+.driver-summary-item .card:hover {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.driver-summary-item .card-body {
+    padding: 0.75rem 1rem;
+}
+
+/* Progress bar styling */
+.progress {
+    background-color: #e9ecef;
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .driver-selection-item .row {
+        flex-direction: column;
+    }
+    
+    .driver-selection-item .col-md-6:first-child {
+        margin-bottom: 1rem;
+    }
+    
+    .starting-location-selection .btn-group {
+        flex-direction: column;
+    }
+    
+    .starting-location-selection .btn-group .btn {
+        border-radius: 0.375rem !important;
+        margin-bottom: 0.25rem;
+    }
+    
+    .starting-location-selection .btn-group .btn:last-child {
+        margin-bottom: 0;
+    }
+    
+    .problem-types-grid {
+        max-height: 250px;
+    }
+    
+    .loading-content {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+}
+
+/* Animation for step transitions */
+.card {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Enhanced form styling */
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.form-check-input:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Better spacing for address validation */
+.invalid-address-item {
+    border-left: 4px solid #ffc107;
+}
+
+.invalid-address-item:hover {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Enhanced alert styling */
+.alert {
+    border-radius: 0.5rem;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.alert-success {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+}
