@@ -35,7 +35,7 @@
                     </div>
                     <div class="col-md-3 text-center text-md-end">
                         <div class="header-buttons">
-                            <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#addDriverModal">
+                            <button class="btn btn-refresh me-2" data-bs-toggle="modal" data-bs-target="#addDriverModal">
                                 <i class="fas fa-user-plus me-2"></i>Add Driver
                             </button>
                             <button class="btn btn-refresh" onclick="initializeApp()">
@@ -171,7 +171,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="addDriverModal" tabindex="-1" aria-labelledby="addDriverModalLabel" aria-hidden="true">
+    <div class="modal fade" id="addDriverModal" tabindex="-1" aria-labelledby="addDriverModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
