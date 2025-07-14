@@ -35,9 +35,6 @@
                     </div>
                     <div class="col-md-3 text-center text-md-end">
                         <div class="header-buttons">
-                            <button class="btn btn-outline-primary btn-sm" onclick="toggleAddDriverForm()">
-                                <i class="fas fa-user-plus me-1"></i>Add New Driver
-                            </button>
                             <button class="btn btn-refresh" onclick="initializeApp()">
                                 <i class="fas fa-sync-alt me-2"></i>Initialize
                             </button>
@@ -168,110 +165,6 @@
                     <!-- Results will be shown here -->
                 </div>
             </div>
-        </div>
-    </div>
-
-    <div id="addDriverCard" class="card mt-3 hidden">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="fas fa-user-plus me-2"></i>Add New Driver
-            </h5>
-        </div>
-        <div class="card-body">
-            <div id="addDriverAlertContainer"></div>
-            
-            <form id="addDriverForm" onsubmit="handleAddDriverSubmit(event)">
-                <div class="row">
-                    <!-- Basic Information -->
-                    <div class="col-md-6">
-                        <h6 class="mb-3">
-                            <i class="fas fa-user me-2"></i>Basic Information
-                        </h6>
-                        
-                        <div class="mb-3">
-                            <label for="member_email" class="form-label">Email Address *</label>
-                            <input type="email" class="form-control" id="member_email" name="member_email" 
-                                placeholder="driver@example.com" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="member_first_name" class="form-label">First Name *</label>
-                            <input type="text" class="form-control" id="member_first_name" name="member_first_name" 
-                                placeholder="John" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="member_last_name" class="form-label">Last Name *</label>
-                            <input type="text" class="form-control" id="member_last_name" name="member_last_name" 
-                                placeholder="Doe" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password *</label>
-                            <input type="password" class="form-control" id="password" name="password" 
-                                placeholder="Enter secure password" required>
-                            <div class="form-text">
-                                <small>Password should be strong and secure</small>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Address Information -->
-                    <div class="col-md-6">
-                        <h6 class="mb-3">
-                            <i class="fas fa-map-marker-alt me-2"></i>Address Information
-                        </h6>
-                        
-                        <div class="mb-3">
-                            <label for="hq_address" class="form-label">HQ Address *</label>
-                            <input type="text" class="form-control" id="hq_address" name="hq_address" 
-                                placeholder="3060 W Story Rd, Irving, TX 75038" required>
-                            <div class="form-text">
-                                <small>Full address with street, city, state, and zip</small>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="home_address" class="form-label">Home Address *</label>
-                            <input type="text" class="form-control" id="home_address" name="home_address" 
-                                placeholder="102 Zion Ln, Forney, TX 75126" required>
-                            <div class="form-text">
-                                <small>Full address with street, city, state, and zip</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Problem Types -->
-                <div class="row">
-                    <div class="col-12">
-                        <h6 class="mb-3">
-                            <i class="fas fa-tools me-2"></i>Problem Types *
-                        </h6>
-                        <div class="form-text mb-3">
-                            <small>Select all problem types this driver can handle</small>
-                        </div>
-                        
-                        <div id="problemTypesContainer">
-                            <!-- Problem types will be generated here -->
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Form Actions -->
-                <div class="row">
-                    <div class="col-12">
-                        <div class="d-flex justify-content-end mt-4">
-                            <button type="button" class="btn btn-secondary me-2" onclick="toggleAddDriverForm()">
-                                <i class="fas fa-times me-2"></i>Cancel
-                            </button>
-                            <button type="submit" class="btn btn-success" id="addDriverSubmitBtn">
-                                <i class="fas fa-user-plus me-2"></i>Add Driver
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </form>
         </div>
     </div>
 
