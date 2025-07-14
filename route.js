@@ -1275,7 +1275,7 @@ geotab.addin.route4me = function () {
         }
     }
 
-    /*
+    /**
      * Handle add driver form submission
      */
     async function handleAddDriverSubmit() {
@@ -1330,30 +1330,27 @@ geotab.addin.route4me = function () {
                 })
             });
             
-            // Always clear loading state first
-            hideLoadingInCard('addDriverCard');
-            
             const data = await response.json();
+            
+            // Clear loading state
+            hideLoadingInCard('addDriverCard');
             
             if (response.ok && data.success) {
                 showAddDriverResults(data);
                 showAlert('Driver added successfully!', 'success');
             } else {
-                // Handle both HTTP errors and API errors
-                const errorMessage = data.error || `HTTP ${response.status}: ${response.statusText}`;
-                showAddDriverError(errorMessage);
-                showAlert(errorMessage, 'danger');
+                showAddDriverError(data.error || 'Failed to add driver');
+                showAlert(data.error || 'Failed to add driver', 'danger');
             }
             
         } catch (error) {
             console.error('Error adding driver:', error);
             
-            // Ensure loading state is cleared on network errors
+            // Clear loading state
             hideLoadingInCard('addDriverCard');
             
-            const errorMessage = 'Network error occurred while adding driver. Please check your connection and try again.';
-            showAddDriverError(errorMessage);
-            showAlert(errorMessage, 'danger');
+            showAddDriverError('Network error occurred while adding driver');
+            showAlert('Network error occurred while adding driver', 'danger');
         }
     }
 
@@ -1382,36 +1379,20 @@ geotab.addin.route4me = function () {
     }
 
     /**
-     * Show add driver error with better formatting
+     * Show add driver error
      */
     function showAddDriverError(errorMessage) {
         const resultsDiv = document.getElementById('addDriverResults');
         if (!resultsDiv) return;
         
-        // Clean up error message for better display
-        let displayMessage = errorMessage;
-        
-        // If it's a Route4Me API error, try to make it more user-friendly
-        if (errorMessage.includes('Route4Me API error:')) {
-            displayMessage = errorMessage.replace('Route4Me API error: ', '');
-            
-            // Handle common error patterns
-            if (displayMessage.includes('member email has already been taken')) {
-                displayMessage = 'This email address is already registered with Route4Me. Please use a different email address.';
-            }
-        }
-        
         resultsDiv.innerHTML = `
             <div class="alert alert-danger">
                 <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Adding Driver</h6>
-                <p class="mb-0">${displayMessage}</p>
+                <p class="mb-0">${errorMessage}</p>
             </div>
             <div class="text-center">
-                <button class="btn btn-secondary me-2" onclick="showAddDriverForm()">
+                <button class="btn btn-secondary" onclick="showAddDriverForm()">
                     <i class="fas fa-redo me-2"></i>Try Again
-                </button>
-                <button class="btn btn-outline-secondary" onclick="cancelAddDriver()">
-                    <i class="fas fa-arrow-left me-2"></i>Back to App
                 </button>
             </div>
         `;
