@@ -1215,11 +1215,22 @@ geotab.addin.route4me = function () {
      * Show add driver form
      */
     function showAddDriverForm() {
-        // Hide other cards
+        // Hide ALL cards and step indicator
         hideCard('userValidationCard');
         hideCard('driverSelectionCard');
         hideCard('addressUploadCard');
         hideCard('routeCreationCard');
+        
+        // Hide step indicator and main container
+        const stepIndicator = document.querySelector('.step-indicator');
+        if (stepIndicator) {
+            stepIndicator.style.display = 'none';
+        }
+        
+        const mainContainer = document.getElementById('route4meApp');
+        if (mainContainer) {
+            mainContainer.style.display = 'none';
+        }
         
         // Show add driver card
         showCard('addDriverCard');
@@ -1240,6 +1251,18 @@ geotab.addin.route4me = function () {
      */
     function cancelAddDriver() {
         hideCard('addDriverCard');
+        
+        // Show step indicator and main container again
+        const stepIndicator = document.querySelector('.step-indicator');
+        if (stepIndicator) {
+            stepIndicator.style.display = 'flex';
+        }
+        
+        const mainContainer = document.getElementById('route4meApp');
+        if (mainContainer) {
+            mainContainer.style.display = 'block';
+        }
+        
         // Return to the appropriate card based on current step
         if (currentStep === 1) {
             showCard('userValidationCard');
@@ -1256,6 +1279,8 @@ geotab.addin.route4me = function () {
      * Handle add driver form submission
      */
     async function handleAddDriverSubmit() {
+        // Prevent form default submission
+        event.preventDefault();
         
         // Get form data
         const formData = {
@@ -1307,6 +1332,9 @@ geotab.addin.route4me = function () {
             
             const data = await response.json();
             
+            // Clear loading state
+            hideLoadingInCard('addDriverCard');
+            
             if (response.ok && data.success) {
                 showAddDriverResults(data);
                 showAlert('Driver added successfully!', 'success');
@@ -1317,6 +1345,10 @@ geotab.addin.route4me = function () {
             
         } catch (error) {
             console.error('Error adding driver:', error);
+            
+            // Clear loading state
+            hideLoadingInCard('addDriverCard');
+            
             showAddDriverError('Network error occurred while adding driver');
             showAlert('Network error occurred while adding driver', 'danger');
         }
@@ -1366,6 +1398,29 @@ geotab.addin.route4me = function () {
         `;
         
         resultsDiv.classList.remove('hidden');
+    }
+
+    /**
+     * Helper function to hide loading state in card
+     */
+    function hideLoadingInCard(cardId) {
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        
+        // Remove loading overlay if it exists
+        const loadingOverlay = card.querySelector('.loading-overlay');
+        if (loadingOverlay) {
+            loadingOverlay.remove();
+        }
+        
+        // Re-enable form elements
+        const form = card.querySelector('form');
+        if (form) {
+            const inputs = form.querySelectorAll('input, textarea, button');
+            inputs.forEach(input => {
+                input.disabled = false;
+            });
+        }
     }
 
 
