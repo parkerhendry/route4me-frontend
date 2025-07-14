@@ -1261,8 +1261,22 @@ geotab.addin.route4me = function () {
                 showAlert('Driver added successfully!', 'success');
                 
                 // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addDriverModal'));
-                modal.hide();
+                const modalElement = document.getElementById('addDriverModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Force remove any lingering backdrop
+                setTimeout(() => {
+                    const backdrop = document.querySelector('.modal-backdrop');
+                    if (backdrop) {
+                        backdrop.remove();
+                    }
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                }, 300);
                 
                 // Reset form
                 form.reset();
