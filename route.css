@@ -664,66 +664,21 @@
     color: #721c24;
 }
 .btn-outline-primary {
-    border-color: #007bff;
-    color: #007bff;
+    margin-left: 10px;
 }
 
-.btn-outline-primary:hover {
-    background-color: #007bff;
-    color: white;
+#addDriverCard .row {
+    margin-bottom: 1rem;
 }
 
-.modal-header {
+#addDriverCard h6 {
+    color: #0d6efd;
     border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
 }
 
-.modal-footer {
-    border-top: 1px solid #dee2e6;
-}
-
-.form-control:focus {
-    border-color: #007bff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-.was-validated .form-control:invalid {
-    border-color: #dc3545;
-}
-
-.was-validated .form-control:valid {
-    border-color: #28a745;
-}
-
-.alert-info {
-    background-color: #d1ecf1;
-    border-color: #bee5eb;
-    color: #0c5460;
-}
-
-.header-buttons .btn {
-    margin-left: 0.5rem;
-}
-
-.header-buttons .btn:first-child {
-    margin-left: 0;
-}
-
-.modal-dialog {
-    margin-top: 2rem;
-    margin-bottom: 2rem;
-}
-
-.modal {
-    position: fixed !important;
-    z-index: 9999 !important;
-}
-
-.modal-backdrop {
-    position: fixed !important;
-    z-index: 9998 !important;
-}
-
-/* Ensure modal appears above Geotab's containers */
-#addDriverModal {
-    z-index: 10000 !important;
+#driverTypes {
+    resize: vertical;
+    min-height: 100px;
 }
