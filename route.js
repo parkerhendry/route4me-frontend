@@ -1260,23 +1260,29 @@ geotab.addin.route4me = function () {
             if (response.ok && result.success) {
                 showAlert('Driver added successfully!', 'success');
                 
-                // Close modal
+                // Close modal and clean up properly for Geotab
                 const modalElement = document.getElementById('addDriverModal');
                 const modal = bootstrap.Modal.getInstance(modalElement);
                 if (modal) {
                     modal.hide();
                 }
 
-                // Force remove any lingering backdrop
+                // Geotab-specific cleanup
                 setTimeout(() => {
-                    const backdrop = document.querySelector('.modal-backdrop');
-                    if (backdrop) {
-                        backdrop.remove();
-                    }
+                    // Remove all modal-related elements
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    backdrops.forEach(backdrop => backdrop.remove());
+                    
+                    // Clean up body classes and styles
                     document.body.classList.remove('modal-open');
                     document.body.style.overflow = '';
                     document.body.style.paddingRight = '';
-                }, 300);
+                    
+                    // Reset modal state
+                    modalElement.classList.remove('show');
+                    modalElement.style.display = 'none';
+                    modalElement.setAttribute('aria-hidden', 'true');
+                }, 100);
                 
                 // Reset form
                 form.reset();
@@ -1344,6 +1350,15 @@ geotab.addin.route4me = function () {
             if (elAddin) {
                 elAddin.style.display = 'block';
             }
+            
+            // Clean up any existing modal backdrops from previous focus cycles
+            const existingBackdrops = document.querySelectorAll('.modal-backdrop');
+            existingBackdrops.forEach(backdrop => backdrop.remove());
+            
+            // Ensure body classes are clean
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
             
             // Initialize the app
             initializeAppWithStyles();

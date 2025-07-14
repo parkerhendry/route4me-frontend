@@ -713,10 +713,17 @@
     margin-bottom: 2rem;
 }
 
-.modal-backdrop {
-    z-index: 1040 !important;
+.modal {
+    position: fixed !important;
+    z-index: 9999 !important;
 }
 
-.modal {
-    z-index: 1050 !important;
+.modal-backdrop {
+    position: fixed !important;
+    z-index: 9998 !important;
+}
+
+/* Ensure modal appears above Geotab's containers */
+#addDriverModal {
+    z-index: 10000 !important;
 }
