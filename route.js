@@ -13,7 +13,8 @@ geotab.addin.route4me = function () {
     let selectedDrivers = [];
     let uploadedAddresses = [];
     let currentStep = 1;
-    
+    let showingAddDriverForm = false;
+
     // Backend URL - Update this to your EC2 instance URL
     const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
 
@@ -1211,45 +1212,44 @@ geotab.addin.route4me = function () {
         }, 5000);
     }
 
+    // Add this function after your existing functions
     /**
-     * Show add driver form
+     * Show/hide add driver form
      */
-    function showAddDriverForm() {
-        // Hide other cards
-        hideCard('userValidationCard');
-        hideCard('driverSelectionCard');
-        hideCard('addressUploadCard');
-        hideCard('routeCreationCard');
+    function toggleAddDriverForm() {
+        const addDriverCard = document.getElementById('addDriverCard');
+        const addDriverBtn = document.getElementById('addDriverBtn');
         
-        // Show add driver card
-        showCard('addDriverCard');
+        if (!addDriverCard || !addDriverBtn) return;
         
-        // Reset form
-        document.getElementById('addDriverForm').reset();
-        
-        // Hide results
-        const resultsDiv = document.getElementById('addDriverResults');
-        if (resultsDiv) {
-            resultsDiv.classList.add('hidden');
-            resultsDiv.innerHTML = '';
+        if (showingAddDriverForm) {
+            // Hide form
+            addDriverCard.classList.add('hidden');
+            addDriverBtn.innerHTML = '<i class="fas fa-user-plus me-2"></i>Add Driver';
+            showingAddDriverForm = false;
+        } else {
+            // Show form
+            addDriverCard.classList.remove('hidden');
+            addDriverBtn.innerHTML = '<i class="fas fa-times me-2"></i>Cancel';
+            showingAddDriverForm = true;
+            
+            // Reset form
+            resetAddDriverForm();
         }
     }
 
     /**
-     * Cancel add driver operation
+     * Reset add driver form
      */
-    function cancelAddDriver() {
-        hideCard('addDriverCard');
-        // Return to the appropriate card based on current step
-        if (currentStep === 1) {
-            showCard('userValidationCard');
-        } else if (currentStep === 2) {
-            showCard('driverSelectionCard');
-        } else if (currentStep === 3) {
-            showCard('addressUploadCard');
-        } else if (currentStep === 4) {
-            showCard('routeCreationCard');
+    function resetAddDriverForm() {
+        const form = document.getElementById('addDriverForm');
+        if (form) {
+            form.reset();
         }
+        
+        // Clear any existing alerts in the form
+        const formAlerts = document.querySelectorAll('#addDriverCard .alert');
+        formAlerts.forEach(alert => alert.remove());
     }
 
     /**
@@ -1258,35 +1258,44 @@ geotab.addin.route4me = function () {
     async function handleAddDriverSubmit(event) {
         event.preventDefault();
         
-        // Get form data
-        const formData = {
-            member_email: document.getElementById('memberEmail').value.trim(),
-            member_first_name: document.getElementById('memberFirstName').value.trim(),
-            member_last_name: document.getElementById('memberLastName').value.trim(),
-            password: document.getElementById('memberPassword').value,
-            hq: document.getElementById('driverHq').value.trim(),
-            home: document.getElementById('driverHome').value.trim(),
-            types: document.getElementById('driverTypes').value.trim()
+        const formData = new FormData(event.target);
+        const driverData = {
+            member_email: formData.get('member_email'),
+            member_first_name: formData.get('member_first_name'),
+            member_last_name: formData.get('member_last_name'),
+            password: formData.get('password'),
+            hq_address: formData.get('hq_address'),
+            home_address: formData.get('home_address'),
+            problem_types: formData.getAll('problem_types')
         };
         
         // Validate required fields
-        if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-            !formData.password || !formData.hq || !formData.home || !formData.types) {
-            showAlert('Please fill in all required fields', 'danger');
+        if (!driverData.member_email || !driverData.member_first_name || 
+            !driverData.member_last_name || !driverData.password ||
+            !driverData.hq_address || !driverData.home_address) {
+            showAddDriverAlert('Please fill in all required fields.', 'danger');
             return;
         }
         
-        // Process types (convert comma-separated string to array)
-        const typesArray = formData.types.split(',').map(type => type.trim().toUpperCase()).filter(type => type);
+        if (driverData.problem_types.length === 0) {
+            showAddDriverAlert('Please select at least one problem type.', 'danger');
+            return;
+        }
         
         try {
-            // Get current username
             const username = await getCurrentUsername();
             
-            // Show loading state
-            showLoadingInCard('addDriverCard', 'Adding driver...');
+            if (!username) {
+                showAddDriverAlert('Unable to get username. Please refresh the page.', 'danger');
+                return;
+            }
             
-            // Submit to backend
+            // Show loading state
+            const submitBtn = document.getElementById('addDriverSubmitBtn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding Driver...';
+            submitBtn.disabled = true;
+            
             const response = await fetch(`${BACKEND_URL}/add-driver`, {
                 method: 'POST',
                 headers: {
@@ -1294,88 +1303,205 @@ geotab.addin.route4me = function () {
                 },
                 body: JSON.stringify({
                     username: username,
-                    driver_data: {
-                        member_email: formData.member_email,
-                        member_first_name: formData.member_first_name,
-                        member_last_name: formData.member_last_name,
-                        password: formData.password,
-                        hq: formData.hq,
-                        home: formData.home,
-                        types: typesArray
-                    }
+                    driver_data: driverData
                 })
             });
             
             const data = await response.json();
             
-            if (response.ok && data.success) {
-                showAddDriverResults(data);
-                showAlert('Driver added successfully!', 'success');
+            // Reset button state
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to add driver');
+            }
+            
+            if (data.success) {
+                showAddDriverAlert('Driver added successfully!', 'success');
+                
+                // Add the new driver to subDrivers array if we're on the driver selection step
+                if (data.driver_info) {
+                    subDrivers.push(data.driver_info);
+                    
+                    // If we're currently on the driver selection step, re-render the list
+                    if (currentStep === 2) {
+                        renderDriverList();
+                    }
+                }
+                
+                // Close form after success
+                setTimeout(() => {
+                    toggleAddDriverForm();
+                }, 2000);
+                
             } else {
-                showAddDriverError(data.error || 'Failed to add driver');
-                showAlert(data.error || 'Failed to add driver', 'danger');
+                throw new Error('Failed to add driver');
             }
             
         } catch (error) {
-            console.error('Error adding driver:', error);
-            showAddDriverError('Network error occurred while adding driver');
-            showAlert('Network error occurred while adding driver', 'danger');
+            console.error('Add driver error:', error);
+            showAddDriverAlert(`Failed to add driver: ${error.message}`, 'danger');
+            
+            // Reset button state
+            const submitBtn = document.getElementById('addDriverSubmitBtn');
+            submitBtn.innerHTML = '<i class="fas fa-user-plus me-2"></i>Add Driver';
+            submitBtn.disabled = false;
         }
     }
 
     /**
-     * Show add driver success results
+     * Show alert in add driver form
      */
-    function showAddDriverResults(data) {
-        const resultsDiv = document.getElementById('addDriverResults');
-        if (!resultsDiv) return;
+    function showAddDriverAlert(message, type = 'info') {
+        const alertContainer = document.getElementById('addDriverAlertContainer');
+        if (!alertContainer) return;
         
-        resultsDiv.innerHTML = `
-            <div class="alert alert-success">
-                <h6><i class="fas fa-check-circle me-2"></i>Driver Added Successfully!</h6>
-                <p class="mb-2"><strong>Route4Me Member ID:</strong> ${data.route4me_member_id}</p>
-                <p class="mb-2"><strong>Email:</strong> ${data.driver_email}</p>
-                <p class="mb-0"><strong>Configuration:</strong> Driver information saved to local database</p>
-            </div>
-            <div class="text-center">
-                <button class="btn btn-primary" onclick="cancelAddDriver()">
-                    <i class="fas fa-arrow-left me-2"></i>Back to App
-                </button>
+        // Clear existing alerts
+        alertContainer.innerHTML = '';
+        
+        const alertId = 'add-driver-alert-' + Date.now();
+        
+        const iconMap = {
+            'success': 'check-circle',
+            'danger': 'exclamation-triangle',
+            'warning': 'exclamation-triangle',
+            'info': 'info-circle'
+        };
+        
+        const alertHtml = `
+            <div class="alert alert-${type} alert-dismissible fade show" id="${alertId}" role="alert">
+                <i class="fas fa-${iconMap[type]} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;
         
-        resultsDiv.classList.remove('hidden');
+        alertContainer.innerHTML = alertHtml;
+        
+        // Auto-remove after 5 seconds for success messages
+        if (type === 'success') {
+            setTimeout(() => {
+                const alert = document.getElementById(alertId);
+                if (alert && typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
     }
 
     /**
-     * Show add driver error
+     * Generate problem types checkboxes
      */
-    function showAddDriverError(errorMessage) {
-        const resultsDiv = document.getElementById('addDriverResults');
-        if (!resultsDiv) return;
+    function generateProblemTypesCheckboxes() {
+        const problemTypes = [
+            "10' SWALE", "AS-BUILT SURVEY", "BLDG ENVELOPE", "BOUNDARY SURVEY", "CONTROL FILE",
+            "CORRECTIONS-FSU", "CURB STAKE", "DRAINAGE REVIEW", "DRAINAGE SURVEY", "EAVE HEIGHT",
+            "ELEVAT CERT-BUC", "ELEVAT CERT-CD", "ELEVAT CERT-FC", "ELEVATION STAKE", "ENV W\\ELEV STK",
+            "ENV W\\SWALE STK", "ENVELOPE STAKE", "EXHIBIT", "FENCE STAKE", "FENCE UPDATE",
+            "FIELD ERROR", "FIELD VERIFICAT", "FIN FLOOR STAKE", "FINAL SURVEY", "FINAL SVY DRAIN",
+            "FINAL SVY POOL", "FINAL SVY SWALE", "FORM SURVEY", "HOUSE STAKE", "HOUSE STK W/ELE",
+            "HOUSE STK W\\ELE", "LOCATE RODS", "LOCATE-ELEV STK", "LOT GRADE CERT", "LOT IMPROVEMENT",
+            "LOT STUDY", "LOT SURVEY", "METES & BOUNDS", "MISC", "PAD STK W ELEVA", "PAD SURVEY",
+            "PICTURE 75", "PP GRADES", "RE-BLD ENVELOPE", "RE-DRAINAGE SUR", "RE-ENV STAKE",
+            "RE-FORM SURVEY", "RE-LOCATE RODS", "REVIEW FINAL", "REVIEW-FINAL", "REVIEW-FORM",
+            "RIBBON SURVEY", "RIDGE HEIGHT", "RUSH FEE", "SET RODS (NC)", "SET TEMP BMKS",
+            "SIGNED SLAB SVY", "SLAB REVIEW", "SLOPE", "SLOPE SURVEY", "STAKE DRIVEWAY",
+            "STAKE EASMENT", "TOPO CITY REQUI", "TOPO SURVEY", "TREE SURVEY", "UPDATE ELEV CER",
+            "UPDATE FSD DRAI", "UPDATE SURVEY", "WARRANTY-SLAB", "WNTY DRAINAGE"
+        ];
         
-        resultsDiv.innerHTML = `
-            <div class="alert alert-danger">
-                <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Adding Driver</h6>
-                <p class="mb-0">${errorMessage}</p>
+        const container = document.getElementById('problemTypesContainer');
+        if (!container) return;
+        
+        // Create search input
+        let html = `
+            <div class="problem-types-search mb-3">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" id="problemTypesSearch" 
+                        placeholder="Search problem types..." 
+                        onkeyup="filterProblemTypes()">
+                </div>
             </div>
-            <div class="text-center">
-                <button class="btn btn-secondary" onclick="showAddDriverForm()">
-                    <i class="fas fa-redo me-2"></i>Try Again
+            
+            <div class="problem-types-actions mb-3">
+                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllProblemTypes()">
+                    <i class="fas fa-check-square me-1"></i>Select All
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllProblemTypes()">
+                    <i class="fas fa-square me-1"></i>Clear All
                 </button>
             </div>
+            
+            <div class="problem-types-grid" id="problemTypesGrid" style="max-height: 300px; overflow-y: auto;">
         `;
         
-        resultsDiv.classList.remove('hidden');
+        // Create checkboxes in a grid
+        problemTypes.forEach((type, index) => {
+            html += `
+                <div class="form-check problem-type-item" data-type="${type.toLowerCase()}">
+                    <input class="form-check-input" type="checkbox" name="problem_types" 
+                        value="${type}" id="problemType${index}">
+                    <label class="form-check-label" for="problemType${index}">
+                        ${type}
+                    </label>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
     }
 
-    // Add event listener for form submission
-    document.addEventListener('DOMContentLoaded', function() {
-        const addDriverForm = document.getElementById('addDriverForm');
-        if (addDriverForm) {
-            addDriverForm.addEventListener('submit', handleAddDriverSubmit);
-        }
-    });
+    /**
+     * Filter problem types based on search
+     */
+    function filterProblemTypes() {
+        const searchTerm = document.getElementById('problemTypesSearch').value.toLowerCase();
+        const problemTypeItems = document.querySelectorAll('.problem-type-item');
+        
+        problemTypeItems.forEach(item => {
+            const typeName = item.getAttribute('data-type');
+            if (typeName.includes(searchTerm)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    /**
+     * Select all problem types
+     */
+    function selectAllProblemTypes() {
+        const checkboxes = document.querySelectorAll('#problemTypesGrid input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            if (checkbox.closest('.problem-type-item').style.display !== 'none') {
+                checkbox.checked = true;
+            }
+        });
+    }
+
+    /**
+     * Clear all problem types
+     */
+    function clearAllProblemTypes() {
+        const checkboxes = document.querySelectorAll('#problemTypesGrid input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+
+    // Add these functions to your window object at the end of your file, after the existing ones
+    window.toggleAddDriverForm = toggleAddDriverForm;
+    window.handleAddDriverSubmit = handleAddDriverSubmit;
+    window.filterProblemTypes = filterProblemTypes;
+    window.selectAllProblemTypes = selectAllProblemTypes;
+    window.clearAllProblemTypes = clearAllProblemTypes;
 
     /**
      * Expose global functions
@@ -1389,9 +1515,6 @@ geotab.addin.route4me = function () {
     window.cancelAddressCorrection = cancelAddressCorrection;
     window.proceedWithCurrentAddresses = proceedWithCurrentAddresses;
     window.filterDrivers = filterDrivers;
-    window.showAddDriverForm = showAddDriverForm;
-    window.cancelAddDriver = cancelAddDriver;
-    window.handleAddDriverSubmit = handleAddDriverSubmit;
 
     return {
         /**
