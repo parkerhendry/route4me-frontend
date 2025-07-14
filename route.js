@@ -1401,25 +1401,85 @@ geotab.addin.route4me = function () {
     }
 
     /**
-     * Helper function to hide loading state in card
+     * Helper function to hide loading state in card and restore original content
      */
     function hideLoadingInCard(cardId) {
         const card = document.getElementById(cardId);
         if (!card) return;
         
-        // Remove loading overlay if it exists
-        const loadingOverlay = card.querySelector('.loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.remove();
-        }
-        
-        // Re-enable form elements
-        const form = card.querySelector('form');
-        if (form) {
-            const inputs = form.querySelectorAll('input, textarea, button');
-            inputs.forEach(input => {
-                input.disabled = false;
-            });
+        // For addDriverCard, restore the form and results area
+        if (cardId === 'addDriverCard') {
+            const content = card.querySelector('.card-body');
+            if (content) {
+                content.innerHTML = `
+                    <form id="addDriverForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-route me-2"></i>Route4Me Information</h6>
+                                <div class="mb-3">
+                                    <label for="memberEmail" class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="memberEmail" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="memberFirstName" class="form-label">First Name</label>
+                                    <input type="text" class="form-control" id="memberFirstName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="memberLastName" class="form-label">Last Name</label>
+                                    <input type="text" class="form-control" id="memberLastName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="memberPassword" class="form-label">Password</label>
+                                    <input type="password" class="form-control" id="memberPassword" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-cog me-2"></i>Driver Configuration</h6>
+                                <div class="mb-3">
+                                    <label for="driverHq" class="form-label">HQ Address</label>
+                                    <input type="text" class="form-control" id="driverHq" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="driverHome" class="form-label">Home Address</label>
+                                    <input type="text" class="form-control" id="driverHome" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="driverTypes" class="form-label">Service Types (comma-separated)</label>
+                                    <textarea class="form-control" id="driverTypes" rows="5" 
+                                            placeholder="Enter service types separated by commas (e.g., BOUNDARY SURVEY, HOUSE STAKE, FINAL SURVEY)"></textarea>
+                                    <small class="form-text text-muted">Enter the types of services this driver can handle</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <button type="button" class="btn btn-secondary me-2" onclick="cancelAddDriver()">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </button>
+                            <button type="submit" class="btn btn-success" onclick="handleAddDriverSubmit()">
+                                <i class="fas fa-plus me-2"></i>Add Driver
+                            </button>
+                        </div>
+                    </form>
+                    <div class="mt-3 hidden" id="addDriverResults">
+                        <!-- Results will be shown here -->
+                    </div>
+                `;
+            }
+        } else {
+            // For other cards, try to remove loading overlay if it exists
+            const loadingOverlay = card.querySelector('.loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.remove();
+            }
+            
+            // Re-enable form elements if they exist
+            const form = card.querySelector('form');
+            if (form) {
+                const inputs = form.querySelectorAll('input, textarea, button');
+                inputs.forEach(input => {
+                    input.disabled = false;
+                });
+            }
         }
     }
 
