@@ -1212,6 +1212,164 @@ geotab.addin.route4me = function () {
     }
 
     /**
+     * Show add driver form
+     */
+    function showAddDriverForm() {
+        // Hide other cards
+        hideCard('userValidationCard');
+        hideCard('driverSelectionCard');
+        hideCard('addressUploadCard');
+        hideCard('routeCreationCard');
+        
+        // Show add driver card
+        showCard('addDriverCard');
+        
+        // Reset form
+        document.getElementById('addDriverForm').reset();
+        
+        // Hide results
+        const resultsDiv = document.getElementById('addDriverResults');
+        if (resultsDiv) {
+            resultsDiv.classList.add('hidden');
+            resultsDiv.innerHTML = '';
+        }
+    }
+
+    /**
+     * Cancel add driver operation
+     */
+    function cancelAddDriver() {
+        hideCard('addDriverCard');
+        // Return to the appropriate card based on current step
+        if (currentStep === 1) {
+            showCard('userValidationCard');
+        } else if (currentStep === 2) {
+            showCard('driverSelectionCard');
+        } else if (currentStep === 3) {
+            showCard('addressUploadCard');
+        } else if (currentStep === 4) {
+            showCard('routeCreationCard');
+        }
+    }
+
+    /**
+     * Handle add driver form submission
+     */
+    async function handleAddDriverSubmit() {
+        
+        // Get form data
+        const formData = {
+            member_email: document.getElementById('memberEmail').value.trim(),
+            member_first_name: document.getElementById('memberFirstName').value.trim(),
+            member_last_name: document.getElementById('memberLastName').value.trim(),
+            password: document.getElementById('memberPassword').value,
+            hq: document.getElementById('driverHq').value.trim(),
+            home: document.getElementById('driverHome').value.trim(),
+            types: document.getElementById('driverTypes').value.trim()
+        };
+        
+        // Validate required fields
+        if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
+            !formData.password || !formData.hq || !formData.home || !formData.types) {
+            showAlert('Please fill in all required fields', 'danger');
+            return;
+        }
+        
+        // Process types (convert comma-separated string to array)
+        const typesArray = formData.types.split(',').map(type => type.trim().toUpperCase()).filter(type => type);
+        
+        try {
+            // Get current username
+            const username = await getCurrentUsername();
+            
+            // Show loading state
+            showLoadingInCard('addDriverCard', 'Adding driver...');
+            
+            // Submit to backend
+            const response = await fetch(`${BACKEND_URL}/add-driver`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    driver_data: {
+                        member_email: formData.member_email,
+                        member_first_name: formData.member_first_name,
+                        member_last_name: formData.member_last_name,
+                        password: formData.password,
+                        hq: formData.hq,
+                        home: formData.home,
+                        types: typesArray
+                    }
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                showAddDriverResults(data);
+                showAlert('Driver added successfully!', 'success');
+            } else {
+                showAddDriverError(data.error || 'Failed to add driver');
+                showAlert(data.error || 'Failed to add driver', 'danger');
+            }
+            
+        } catch (error) {
+            console.error('Error adding driver:', error);
+            showAddDriverError('Network error occurred while adding driver');
+            showAlert('Network error occurred while adding driver', 'danger');
+        }
+    }
+
+    /**
+     * Show add driver success results
+     */
+    function showAddDriverResults(data) {
+        const resultsDiv = document.getElementById('addDriverResults');
+        if (!resultsDiv) return;
+        
+        resultsDiv.innerHTML = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle me-2"></i>Driver Added Successfully!</h6>
+                <p class="mb-2"><strong>Route4Me Member ID:</strong> ${data.route4me_member_id}</p>
+                <p class="mb-2"><strong>Email:</strong> ${data.driver_email}</p>
+                <p class="mb-0"><strong>Configuration:</strong> Driver information saved to local database</p>
+            </div>
+            <div class="text-center">
+                <button class="btn btn-primary" onclick="cancelAddDriver()">
+                    <i class="fas fa-arrow-left me-2"></i>Back to App
+                </button>
+            </div>
+        `;
+        
+        resultsDiv.classList.remove('hidden');
+    }
+
+    /**
+     * Show add driver error
+     */
+    function showAddDriverError(errorMessage) {
+        const resultsDiv = document.getElementById('addDriverResults');
+        if (!resultsDiv) return;
+        
+        resultsDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Adding Driver</h6>
+                <p class="mb-0">${errorMessage}</p>
+            </div>
+            <div class="text-center">
+                <button class="btn btn-secondary" onclick="showAddDriverForm()">
+                    <i class="fas fa-redo me-2"></i>Try Again
+                </button>
+            </div>
+        `;
+        
+        resultsDiv.classList.remove('hidden');
+    }
+
+
+    /**
      * Expose global functions
      */
     window.initializeApp = initializeApp;
@@ -1223,6 +1381,9 @@ geotab.addin.route4me = function () {
     window.cancelAddressCorrection = cancelAddressCorrection;
     window.proceedWithCurrentAddresses = proceedWithCurrentAddresses;
     window.filterDrivers = filterDrivers;
+    window.showAddDriverForm = showAddDriverForm;
+    window.cancelAddDriver = cancelAddDriver;
+    window.handleAddDriverSubmit = handleAddDriverSubmit;
 
     return {
         /**

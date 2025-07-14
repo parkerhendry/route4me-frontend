@@ -663,4 +663,22 @@
     background-color: #f8d7da;
     color: #721c24;
 }
+.btn-outline-primary {
+    margin-left: 10px;
+}
 
+#addDriverCard .row {
+    margin-bottom: 1rem;
+}
+
+#addDriverCard h6 {
+    color: #0d6efd;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+#driverTypes {
+    resize: vertical;
+    min-height: 100px;
+}
