@@ -1212,6 +1212,83 @@ geotab.addin.route4me = function () {
     }
 
     /**
+     * Submit add driver form
+     */
+    async function submitAddDriver() {
+        const form = document.getElementById('addDriverForm');
+        const formData = new FormData(form);
+        
+        // Validate form
+        if (!form.checkValidity()) {
+            form.classList.add('was-validated');
+            return;
+        }
+        
+        try {
+            // Show loading state
+            const submitBtn = document.querySelector('#addDriverModal .btn-primary');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding Driver...';
+            submitBtn.disabled = true;
+            
+            // Get current user
+            const username = await getCurrentUsername();
+            
+            // Prepare data for backend
+            const driverData = {
+                username: username,
+                member_email: formData.get('member_email'),
+                member_first_name: formData.get('member_first_name'),
+                member_last_name: formData.get('member_last_name'),
+                password: formData.get('password'),
+                hq: formData.get('hq'),
+                home: formData.get('home'),
+                types: formData.get('types').split(',').map(type => type.trim()).filter(type => type.length > 0)
+            };
+            
+            // Send to backend
+            const response = await fetch(`${BACKEND_URL}/add-driver`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(driverData)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                showAlert('Driver added successfully!', 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addDriverModal'));
+                modal.hide();
+                
+                // Reset form
+                form.reset();
+                form.classList.remove('was-validated');
+                
+                // Refresh driver list if we're on the driver selection step
+                if (currentStep === 2) {
+                    await loadDrivers();
+                    renderDriverList();
+                }
+            } else {
+                showAlert(result.error || 'Failed to add driver', 'danger');
+            }
+            
+        } catch (error) {
+            console.error('Error adding driver:', error);
+            showAlert('Error adding driver: ' + error.message, 'danger');
+        } finally {
+            // Reset button state
+            const submitBtn = document.querySelector('#addDriverModal .btn-primary');
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+    }
+
+    /**
      * Expose global functions
      */
     window.initializeApp = initializeApp;
@@ -1223,6 +1300,7 @@ geotab.addin.route4me = function () {
     window.cancelAddressCorrection = cancelAddressCorrection;
     window.proceedWithCurrentAddresses = proceedWithCurrentAddresses;
     window.filterDrivers = filterDrivers;
+    window.submitAddDriver = submitAddDriver;
 
     return {
         /**

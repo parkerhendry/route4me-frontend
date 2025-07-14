@@ -35,6 +35,9 @@
                     </div>
                     <div class="col-md-3 text-center text-md-end">
                         <div class="header-buttons">
+                            <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#addDriverModal">
+                                <i class="fas fa-user-plus me-2"></i>Add Driver
+                            </button>
                             <button class="btn btn-refresh" onclick="initializeApp()">
                                 <i class="fas fa-sync-alt me-2"></i>Initialize
                             </button>
@@ -163,6 +166,78 @@
                 </div>
                 <div class="mt-3 hidden" id="routeCreationResults">
                     <!-- Results will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addDriverModal" tabindex="-1" aria-labelledby="addDriverModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addDriverModalLabel">
+                        <i class="fas fa-user-plus me-2"></i>Add New Driver
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addDriverForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="mb-3">
+                                    <i class="fas fa-user me-2"></i>Route4Me Account Information
+                                </h6>
+                                <div class="mb-3">
+                                    <label for="driverEmail" class="form-label">Email Address *</label>
+                                    <input type="email" class="form-control" id="driverEmail" name="member_email" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="driverFirstName" class="form-label">First Name *</label>
+                                    <input type="text" class="form-control" id="driverFirstName" name="member_first_name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="driverLastName" class="form-label">Last Name *</label>
+                                    <input type="text" class="form-control" id="driverLastName" name="member_last_name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="driverPassword" class="form-label">Password *</label>
+                                    <input type="password" class="form-control" id="driverPassword" name="password" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-3">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Driver Configuration
+                                </h6>
+                                <div class="mb-3">
+                                    <label for="driverHQ" class="form-label">HQ Address *</label>
+                                    <input type="text" class="form-control" id="driverHQ" name="hq" required>
+                                    <small class="form-text text-muted">Main office or starting location</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="driverHome" class="form-label">Home Address *</label>
+                                    <input type="text" class="form-control" id="driverHome" name="home" required>
+                                    <small class="form-text text-muted">Driver's home address</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="driverTypes" class="form-label">Service Types *</label>
+                                    <textarea class="form-control" id="driverTypes" name="types" rows="4" required placeholder="Enter service types separated by commas (e.g., BOUNDARY SURVEY, HOUSE STAKE, FINAL SURVEY)"></textarea>
+                                    <small class="form-text text-muted">Comma-separated list of service types this driver can handle</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Note:</strong> The driver will be created as a SUB_ACCOUNT_DRIVER in Route4Me and added to your local driver configuration.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="submitAddDriver()">
+                        <i class="fas fa-plus me-2"></i>Add Driver
+                    </button>
                 </div>
             </div>
         </div>
