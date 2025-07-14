@@ -707,3 +707,16 @@
 .header-buttons .btn:first-child {
     margin-left: 0;
 }
+
+.modal-dialog {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+}
+
+.modal-backdrop {
+    z-index: 1040 !important;
+}
+
+.modal {
+    z-index: 1050 !important;
+}
