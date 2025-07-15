@@ -1043,7 +1043,6 @@ geotab.addin.route4me = function () {
                                 <p class="card-text">
                                     <strong>Starting Location:</strong> ${route.starting_location?.toUpperCase()}<br>
                                     <strong>Addresses:</strong> ${route.addresses_count}<br>
-                                    <strong>Route ID:</strong> ${route.route_id || 'N/A'}
                                 </p>
                             </div>
                         </div>
