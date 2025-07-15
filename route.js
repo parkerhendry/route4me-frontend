@@ -973,6 +973,8 @@ geotab.addin.route4me = function () {
                 email: driver.member_email,
                 starting_location: driver.starting_location
             }));
+
+            console.log("Hello")
             
             const response = await fetch(`${BACKEND_URL}/create-routes`, {
                 method: 'POST',
@@ -987,6 +989,8 @@ geotab.addin.route4me = function () {
             });
             
             const data = await response.json();
+
+            console.log("Hello2")
             
             // Hide loading indicator
             hideLoadingIndicator();
