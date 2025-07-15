@@ -957,6 +957,24 @@ geotab.addin.route4me = function () {
             return;
         }
         
+        // Get and validate date/time inputs
+        const routeDateInput = document.getElementById('routeDate');
+        const routeTimeInput = document.getElementById('routeTime');
+        
+        if (!routeDateInput.value || !routeTimeInput.value) {
+            showAlert('Please select both a date and time for the route.', 'warning');
+            return;
+        }
+        
+        // Validate that the selected date is not in the past
+        const selectedDate = new Date(routeDateInput.value + 'T' + routeTimeInput.value);
+        const now = new Date();
+        
+        if (selectedDate <= now) {
+            showAlert('Please select a date and time in the future.', 'warning');
+            return;
+        }
+        
         try {
             const username = await getCurrentUsername();
             
@@ -984,7 +1002,9 @@ geotab.addin.route4me = function () {
                 body: JSON.stringify({
                     username: username,
                     selected_drivers: formattedDrivers,
-                    addresses: uploadedAddresses
+                    addresses: uploadedAddresses,
+                    route_date: routeDateInput.value,
+                    route_time: routeTimeInput.value
                 })
             });
             
