@@ -975,62 +975,62 @@ geotab.addin.route4me = function () {
             return;
         }
         
-        try {
-            const username = await getCurrentUsername();
-            
-            if (!username) {
-                showAlert('Unable to get username. Please refresh the page.', 'danger');
-                return;
-            }
-            
-            // Show loading indicator
-            showLoadingIndicator('Creating optimized routes with Route4Me...');
-            
-            // Format drivers for API
-            const formattedDrivers = selectedDrivers.map(driver => ({
-                email: driver.member_email,
-                starting_location: driver.starting_location
-            }));
-
-            console.log("Hello")
-            
-            const response = await fetch(`${BACKEND_URL}/create-routes`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    username: username,
-                    selected_drivers: formattedDrivers,
-                    addresses: uploadedAddresses,
-                    route_date: routeDateInput.value,
-                    route_time: routeTimeInput.value
-                })
-            });
-            
-            const data = await response.json();
-
-            console.log("Hello2")
-            
-            // Hide loading indicator
-            hideLoadingIndicator();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Route creation failed');
-            }
-            
-            if (data.success) {
-                showAlert('Routes created successfully!', 'success');
-                showRouteCreationResults(data);
-            } else {
-                throw new Error('Route creation failed');
-            }
-            
-        } catch (error) {
-            hideLoadingIndicator();
-            console.error('Route creation error:', error);
-            showAlert(`Route creation failed: ${error.message}`, 'danger');
+        //try {
+        const username = await getCurrentUsername();
+        
+        if (!username) {
+            showAlert('Unable to get username. Please refresh the page.', 'danger');
+            return;
         }
+        
+        // Show loading indicator
+        showLoadingIndicator('Creating optimized routes with Route4Me...');
+        
+        // Format drivers for API
+        const formattedDrivers = selectedDrivers.map(driver => ({
+            email: driver.member_email,
+            starting_location: driver.starting_location
+        }));
+
+        console.log("Hello")
+        
+        const response = await fetch(`${BACKEND_URL}/create-routes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                selected_drivers: formattedDrivers,
+                addresses: uploadedAddresses,
+                route_date: routeDateInput.value,
+                route_time: routeTimeInput.value
+            })
+        });
+        
+        const data = await response.json();
+
+        console.log("Hello2")
+        
+        // Hide loading indicator
+        hideLoadingIndicator();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Route creation failed');
+        }
+        
+        if (data.success) {
+            showAlert('Routes created successfully!', 'success');
+            showRouteCreationResults(data);
+        } else {
+            throw new Error('Route creation failed');
+        }
+            
+        //} catch (error) {
+        //    hideLoadingIndicator();
+        //    console.error('Route creation error:', error);
+        //    showAlert(`Route creation failed: ${error.message}`, 'danger');
+        //}
     }
 
     /**
