@@ -199,7 +199,7 @@ geotab.addin.route4me = function () {
         const driverList = document.getElementById('driverList');
         if (!driverList) return;
         
-        // Add search bar
+        // Add search bar and select all controls
         const searchHtml = `
             <div class="driver-search mb-3">
                 <div class="input-group">
@@ -209,6 +209,27 @@ geotab.addin.route4me = function () {
                     <input type="text" class="form-control" id="driverSearch" 
                         placeholder="Search drivers by name or email..." 
                         onkeyup="filterDrivers()">
+                </div>
+            </div>
+            <div class="driver-controls mb-3">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="selectAllDrivers()">
+                                <i class="fas fa-check-square me-2"></i>Select All
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="deselectAllDrivers()">
+                                <i class="fas fa-square me-2"></i>Deselect All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-end">
+                            <small class="text-muted">
+                                <span id="selectedCount">0</span> of <span id="totalCount">${subDrivers.length}</span> drivers selected
+                            </small>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="driverListContainer">
@@ -258,6 +279,9 @@ geotab.addin.route4me = function () {
         `).join('');
         
         driverList.innerHTML = searchHtml + driversHtml + '</div>';
+        
+        // Update the total count
+        updateDriverCounts();
     }
 
     // New function to filter drivers based on search
@@ -275,10 +299,79 @@ geotab.addin.route4me = function () {
                 item.style.display = 'none';
             }
         });
+        
+        // Update counts after filtering
+        updateDriverCounts();
+    }
+
+    // New function to select all visible drivers
+    function selectAllDrivers() {
+        const checkboxes = document.querySelectorAll('#driverList input[type="checkbox"]');
+        
+        checkboxes.forEach(checkbox => {
+            const driverItem = checkbox.closest('.driver-selection-item');
+            // Only select if the driver item is visible (not filtered out)
+            if (driverItem && driverItem.style.display !== 'none') {
+                checkbox.checked = true;
+                
+                // Show location selection and set default to HQ
+                const driverId = checkbox.value;
+                const locationDiv = document.getElementById(`location-${driverId}`);
+                if (locationDiv) {
+                    locationDiv.style.display = 'block';
+                    // Set default location to HQ if not already selected
+                    const locationRadios = document.querySelectorAll(`input[name="location-${driverId}"]`);
+                    if (locationRadios.length > 0) {
+                        const hqRadio = document.getElementById(`hq-${driverId}`);
+                        if (hqRadio && !document.querySelector(`input[name="location-${driverId}"]:checked`)) {
+                            hqRadio.checked = true;
+                        }
+                    }
+                }
+            }
+        });
+        
+        updateDriverSelection();
+    }
+
+    // New function to deselect all drivers
+    function deselectAllDrivers() {
+        const checkboxes = document.querySelectorAll('#driverList input[type="checkbox"]');
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+            
+            // Hide location selection
+            const driverId = checkbox.value;
+            const locationDiv = document.getElementById(`location-${driverId}`);
+            if (locationDiv) {
+                locationDiv.style.display = 'none';
+            }
+            
+            // Clear location selection
+            const locationRadios = document.querySelectorAll(`input[name="location-${driverId}"]`);
+            locationRadios.forEach(radio => radio.checked = false);
+        });
+        
+        updateDriverSelection();
+    }
+
+    // New function to update driver counts
+    function updateDriverCounts() {
+        const totalCountElement = document.getElementById('totalCount');
+        const selectedCountElement = document.getElementById('selectedCount');
+        
+        if (totalCountElement && selectedCountElement) {
+            const visibleDrivers = document.querySelectorAll('.driver-selection-item:not([style*="display: none"])');
+            const selectedDrivers = document.querySelectorAll('#driverList input[type="checkbox"]:checked');
+            
+            totalCountElement.textContent = visibleDrivers.length;
+            selectedCountElement.textContent = selectedDrivers.length;
+        }
     }
 
     /**
-     * Update driver selection
+     * Update driver selection (modified to include count updates)
      */
     function updateDriverSelection() {
         const checkboxes = document.querySelectorAll('#driverList input[type="checkbox"]');
@@ -314,18 +407,19 @@ geotab.addin.route4me = function () {
             }
         });
         
-        // Update UI
-        const driverCount = document.getElementById('driverCount');
-        const proceedBtn = document.getElementById('proceedToUploadBtn');
+        // Update counts
+        updateDriverCounts();
         
-        if (driverCount) {
-            driverCount.textContent = selectedDrivers.length;
+        // Update the driver count badge
+        const driverCountBadge = document.getElementById('driverCount');
+        if (driverCountBadge) {
+            driverCountBadge.textContent = selectedDrivers.length;
         }
         
+        // Enable/disable proceed button
+        const proceedBtn = document.getElementById('proceedToUploadBtn');
         if (proceedBtn) {
-            // Enable button only if all selected drivers have a starting location
-            const allHaveLocation = selectedDrivers.every(driver => driver.starting_location);
-            proceedBtn.disabled = selectedDrivers.length === 0 || !allHaveLocation;
+            proceedBtn.disabled = selectedDrivers.length === 0;
         }
     }
 
@@ -561,6 +655,7 @@ geotab.addin.route4me = function () {
             </div>
         `;
         
+        // Replace the entire fileDetails content with the validation form
         document.getElementById('fileDetails').innerHTML = formHtml;
         
         // Store data for later use
@@ -826,6 +921,7 @@ geotab.addin.route4me = function () {
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <p class="mt-3 mb-0 fw-bold">${message}</p>
+                    <p class="mt-2 mb-0 text-muted small">This could take a while</p>
                 </div>
             </div>
         `;
@@ -975,62 +1071,77 @@ geotab.addin.route4me = function () {
             return;
         }
         
-        //try {
-        const username = await getCurrentUsername();
-        
-        if (!username) {
-            showAlert('Unable to get username. Please refresh the page.', 'danger');
-            return;
-        }
-        
-        // Show loading indicator
-        showLoadingIndicator('Creating optimized routes with Route4Me...');
-        
-        // Format drivers for API
-        const formattedDrivers = selectedDrivers.map(driver => ({
-            email: driver.member_email,
-            starting_location: driver.starting_location
-        }));
-
-        console.log("Hello")
-        
-        const response = await fetch(`${BACKEND_URL}/create-routes`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                username: username,
-                selected_drivers: formattedDrivers,
-                addresses: uploadedAddresses,
-                route_date: routeDateInput.value,
-                route_time: routeTimeInput.value
-            })
-        });
-        
-        const data = await response.json();
-
-        console.log("Hello2")
-        
-        // Hide loading indicator
-        hideLoadingIndicator();
-        
-        if (!response.ok) {
-            throw new Error(data.error || 'Route creation failed');
-        }
-        
-        if (data.success) {
-            showAlert('Routes created successfully!', 'success');
-            showRouteCreationResults(data);
-        } else {
-            throw new Error('Route creation failed');
-        }
+        try {
+            const username = await getCurrentUsername();
             
-        //} catch (error) {
-        //    hideLoadingIndicator();
-        //    console.error('Route creation error:', error);
-        //    showAlert(`Route creation failed: ${error.message}`, 'danger');
-        //}
+            if (!username) {
+                showAlert('Unable to get username. Please refresh the page.', 'danger');
+                return;
+            }
+            
+            // Show loading indicator
+            showLoadingIndicator('Creating optimized routes with Route4Me...');
+            
+            // Format drivers for API
+            const formattedDrivers = selectedDrivers.map(driver => ({
+                email: driver.member_email,
+                starting_location: driver.starting_location
+            }));
+
+            console.log("Hello")
+            
+            const response = await fetch(`${BACKEND_URL}/create-routes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    selected_drivers: formattedDrivers,
+                    addresses: uploadedAddresses,
+                    route_date: routeDateInput.value,
+                    route_time: routeTimeInput.value
+                })
+            });
+            
+            console.log("Hello2")
+            
+            // Hide loading indicator
+            hideLoadingIndicator();
+            
+            // Check if response is ok first
+            if (!response.ok) {
+                let errorMessage = 'Route creation failed';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                    // If JSON parsing fails, use default error message
+                    errorMessage = `Route creation failed with status ${response.status}`;
+                }
+                throw new Error(errorMessage);
+            }
+            
+            // Try to parse JSON response
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                throw new Error('Invalid response format from server');
+            }
+            
+            if (data.success) {
+                showAlert('Routes created successfully!', 'success');
+                showRouteCreationResults(data);
+            } else {
+                throw new Error('Route creation failed');
+            }
+                
+        } catch (error) {
+            hideLoadingIndicator();
+            console.error('Route creation error:', error);
+            showAlert(`Route creation failed: ${error.message}`, 'danger');
+        }
     }
 
     /**
