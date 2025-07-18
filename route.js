@@ -1079,16 +1079,15 @@ geotab.addin.route4me = function () {
             }
             
             // Show loading indicator
-            showLoadingIndicator('Creating optimized routes with Route4Me...');
+            showLoadingIndicator('Starting route creation...');
             
             // Format drivers for API
             const formattedDrivers = selectedDrivers.map(driver => ({
                 email: driver.member_email,
                 starting_location: driver.starting_location
             }));
-
-            console.log("Hello")
             
+            // Start the async job
             const response = await fetch(`${BACKEND_URL}/create-routes`, {
                 method: 'POST',
                 headers: {
@@ -1104,21 +1103,16 @@ geotab.addin.route4me = function () {
             });
             
             const data = await response.json();
-
-            console.log("Hello2")
-            
-            // Hide loading indicator
-            hideLoadingIndicator();
             
             if (!response.ok) {
-                throw new Error(data.error || 'Route creation failed');
+                throw new Error(data.error || 'Failed to start route creation');
             }
             
-            if (data.success) {
-                showAlert('Routes created successfully!', 'success');
-                showRouteCreationResults(data);
+            if (data.success && data.job_id) {
+                // Start polling for job status
+                pollJobStatus(data.job_id);
             } else {
-                throw new Error('Route creation failed');
+                throw new Error('Failed to start route creation job');
             }
             
         } catch (error) {
@@ -1126,6 +1120,71 @@ geotab.addin.route4me = function () {
             console.error('Route creation error:', error);
             showAlert(`Route creation failed: ${error.message}`, 'danger');
         }
+    }
+
+    async function pollJobStatus(jobId) {
+        const maxPollTime = 10 * 60 * 1000; // 10 minutes max
+        const pollInterval = 3000; // 3 seconds
+        const startTime = Date.now();
+        
+        const poll = async () => {
+            try {
+                const response = await fetch(`${BACKEND_URL}/route-status/${jobId}`, {
+                    method: 'GET'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to get job status');
+                }
+                
+                const statusData = await response.json();
+                
+                // Update loading indicator with progress
+                if (statusData.status === 'processing') {
+                    const progressText = `${statusData.message} (${statusData.progress || 0}%)`;
+                    showLoadingIndicator(progressText);
+                    
+                    // Check if we've exceeded max poll time
+                    if (Date.now() - startTime > maxPollTime) {
+                        hideLoadingIndicator();
+                        showAlert('Route creation is taking longer than expected. Please check back later.', 'warning');
+                        return;
+                    }
+                    
+                    // Continue polling
+                    setTimeout(poll, pollInterval);
+                    
+                } else if (statusData.status === 'completed') {
+                    // Job completed successfully
+                    hideLoadingIndicator();
+                    
+                    if (statusData.result && statusData.result.success) {
+                        showAlert('Routes created successfully!', 'success');
+                        showRouteCreationResults(statusData.result);
+                    } else {
+                        showAlert('Route creation completed but with errors.', 'warning');
+                    }
+                    
+                } else if (statusData.status === 'failed') {
+                    // Job failed
+                    hideLoadingIndicator();
+                    showAlert(`Route creation failed: ${statusData.error || 'Unknown error'}`, 'danger');
+                    
+                } else {
+                    // Unknown status
+                    hideLoadingIndicator();
+                    showAlert('Unknown job status. Please try again.', 'warning');
+                }
+                
+            } catch (error) {
+                console.error('Error polling job status:', error);
+                hideLoadingIndicator();
+                showAlert(`Error checking job status: ${error.message}`, 'danger');
+            }
+        };
+        
+        // Start polling
+        poll();
     }
 
     /**
