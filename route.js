@@ -1123,8 +1123,8 @@ geotab.addin.route4me = function () {
     }
 
     async function pollJobStatus(jobId) {
-        const maxPollTime = 10 * 60 * 1000; // 10 minutes max
-        const pollInterval = 3000; // 3 seconds
+        const maxPollTime = 60 * 60 * 1000; // 60 minutes max
+        const pollInterval = 5000; // 5 seconds
         const startTime = Date.now();
         
         const poll = async () => {
