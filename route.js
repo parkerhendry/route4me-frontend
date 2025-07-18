@@ -1088,7 +1088,11 @@ geotab.addin.route4me = function () {
                 starting_location: driver.starting_location
             }));
 
-            console.log("Hello")
+            console.log("Starting route creation request...");
+            
+            // Create AbortController for timeout handling
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
             
             const response = await fetch(`${BACKEND_URL}/create-routes`, {
                 method: 'POST',
@@ -1101,46 +1105,80 @@ geotab.addin.route4me = function () {
                     addresses: uploadedAddresses,
                     route_date: routeDateInput.value,
                     route_time: routeTimeInput.value
-                })
+                }),
+                signal: controller.signal
             });
             
-            console.log("Hello2")
+            // Clear the timeout since request completed
+            clearTimeout(timeoutId);
+            
+            console.log("Route creation request completed with status:", response.status);
             
             // Hide loading indicator
             hideLoadingIndicator();
             
-            // Check if response is ok first
+            // Check content type before parsing
+            const contentType = response.headers.get('content-type');
+            const isJson = contentType && contentType.includes('application/json');
+            
             if (!response.ok) {
                 let errorMessage = 'Route creation failed';
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.error || errorMessage;
-                } catch (e) {
-                    // If JSON parsing fails, use default error message
-                    errorMessage = `Route creation failed with status ${response.status}`;
+                
+                if (isJson) {
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        console.error('Error parsing JSON error response:', e);
+                        errorMessage = `Route creation failed with status ${response.status}`;
+                    }
+                } else {
+                    // Handle non-JSON error responses (like HTML error pages)
+                    try {
+                        const textResponse = await response.text();
+                        console.error('Non-JSON error response:', textResponse);
+                        errorMessage = `Route creation failed with status ${response.status}`;
+                    } catch (e) {
+                        console.error('Error reading error response:', e);
+                        errorMessage = `Route creation failed with status ${response.status}`;
+                    }
                 }
+                
                 throw new Error(errorMessage);
             }
             
-            // Try to parse JSON response
+            // Parse successful response
+            if (!isJson) {
+                throw new Error('Server returned non-JSON response');
+            }
+            
             let data;
             try {
                 data = await response.json();
             } catch (e) {
+                console.error('Error parsing JSON response:', e);
                 throw new Error('Invalid response format from server');
             }
+            
+            console.log("Route creation response:", data);
             
             if (data.success) {
                 showAlert('Routes created successfully!', 'success');
                 showRouteCreationResults(data);
             } else {
-                throw new Error('Route creation failed');
+                throw new Error(data.error || 'Route creation failed');
             }
                 
         } catch (error) {
             hideLoadingIndicator();
-            console.error('Route creation error:', error);
-            showAlert(`Route creation failed: ${error.message}`, 'danger');
+            
+            if (error.name === 'AbortError') {
+                console.error('Route creation timeout');
+                showAlert('Route creation timed out. The process may still be running in the background.', 'warning');
+            } else {
+                console.error('Route creation error:', error);
+                showAlert(`Route creation failed: ${error.message}`, 'danger');
+            }
         }
     }
 
