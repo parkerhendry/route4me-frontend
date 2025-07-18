@@ -490,7 +490,7 @@ geotab.addin.route4me = function () {
         }
         
         try {
-            showAlert('Processing Excel file...', 'info');
+            //showAlert('Processing Excel file...', 'success');
             
             const formData = new FormData();
             formData.append('file', file);
@@ -507,7 +507,7 @@ geotab.addin.route4me = function () {
             }
             
             if (data.success) {
-                showAlert(`Successfully loaded ${data.count} addresses. Validating geocoding...`, 'info');
+                showAlert(`Successfully loaded ${data.count} addresses. Validating geocoding...`, 'success');
                 
                 // Validate addresses with geocoding
                 await validateAddresses(data.addresses, file.name);
@@ -583,6 +583,12 @@ geotab.addin.route4me = function () {
     function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
         const fileInfo = document.getElementById('fileInfo');
         if (!fileInfo) return;
+        
+        // Hide the file upload area and show a clean validation interface
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        if (fileUploadArea) {
+            fileUploadArea.style.display = 'none';
+        }
         
         fileInfo.classList.remove('hidden');
         
@@ -669,6 +675,12 @@ geotab.addin.route4me = function () {
             fileInfo.classList.add('hidden');
         }
         
+        // Show the file upload area again
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        if (fileUploadArea) {
+            fileUploadArea.style.display = 'block';
+        }
+        
         // Reset file input
         const fileInput = document.getElementById('fileInput');
         if (fileInput) {
@@ -679,7 +691,7 @@ geotab.addin.route4me = function () {
         window.validAddresses = null;
         window.invalidAddresses = null;
         
-        showAlert('Address correction cancelled. Please upload a new file.', 'info');
+        showAlert('Address correction cancelled. Please upload a new file.', 'danger');
     }
 
     /**
@@ -709,7 +721,7 @@ geotab.addin.route4me = function () {
             });
             
             if (correctedAddresses.length === 0) {
-                showAlert('No corrections were made. Use "Proceed with Current Addresses" if you want to continue as-is.', 'info');
+                showAlert('No corrections were made. Use "Proceed with Current Addresses" if you want to continue as-is.', 'danger');
                 return;
             }
             
@@ -759,7 +771,7 @@ geotab.addin.route4me = function () {
                     // All addresses are now valid
                     uploadedAddresses = (window.validAddresses || []).concat(nowValid);
                     showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
-                    showFileInfo('Corrected File', uploadedAddresses.length);
+                    showCleanFileInfo('Corrected File', uploadedAddresses.length);
                     
                     // Clear stored data
                     window.validAddresses = null;
@@ -794,11 +806,8 @@ geotab.addin.route4me = function () {
             
             showAlert(`Proceeding with ${totalCount} addresses (${invalidCount} with low confidence)`, 'warning');
             
-            // Clear the validation form
-            const fileInfo = document.getElementById('fileInfo');
-            if (fileInfo) {
-                showFileInfo('Current File', totalCount);
-            }
+            // Show clean file info without upload interface
+            showCleanFileInfo('Current File', totalCount);
             
             // Clear stored data
             window.validAddresses = null;
@@ -811,6 +820,35 @@ geotab.addin.route4me = function () {
             console.error('Error proceeding with current addresses:', error);
             showAlert('Error proceeding with addresses. Please try again.', 'danger');
         }
+    }
+
+    /**
+     * Show clean file info without upload interface
+     */
+    function showCleanFileInfo(fileName, addressCount) {
+        const fileInfo = document.getElementById('fileInfo');
+        if (!fileInfo) return;
+        
+        // Hide the file upload area
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        if (fileUploadArea) {
+            fileUploadArea.style.display = 'none';
+        }
+        
+        fileInfo.classList.remove('hidden');
+        
+        const cleanHtml = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>File:</strong> ${fileName} <br>
+                <strong>Addresses:</strong> ${addressCount} validated
+            </div>
+            <button class="btn btn-primary" onclick="proceedToRouteCreation()">
+                <i class="fas fa-arrow-right me-2"></i>Proceed to Route Creation
+            </button>
+        `;
+        
+        document.getElementById('fileDetails').innerHTML = cleanHtml;
     }
 
     // New function to validate driver assignments
@@ -854,7 +892,7 @@ geotab.addin.route4me = function () {
         const fileInfo = document.getElementById('fileInfo');
         if (!fileInfo) return;
         
-        let coverageHtml = '<div class="mt-3"><h6>Problem Type Coverage:</h6>';
+        let coverageHtml = '<div class="mt-3 coverage-details"><h6>Problem Type Coverage:</h6>';
         
         for (const [problemType, info] of Object.entries(coverage)) {
             const badgeClass = info.count > 0 ? 'bg-success' : 'bg-danger';
@@ -868,12 +906,12 @@ geotab.addin.route4me = function () {
         
         coverageHtml += '</div>';
         
-        // Add to file info
+        // Add to file info (replace existing coverage if present)
         const existingCoverage = fileInfo.querySelector('.coverage-details');
         if (existingCoverage) {
-            existingCoverage.innerHTML = coverageHtml;
+            existingCoverage.outerHTML = coverageHtml;
         } else {
-            fileInfo.insertAdjacentHTML('beforeend', `<div class="coverage-details">${coverageHtml}</div>`);
+            fileInfo.insertAdjacentHTML('beforeend', coverageHtml);
         }
     }
 
