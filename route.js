@@ -1673,6 +1673,8 @@ geotab.addin.route4me = function () {
     window.showAddDriverForm = showAddDriverForm;
     window.cancelAddDriver = cancelAddDriver;
     window.handleAddDriverSubmit = handleAddDriverSubmit;
+    window.selectAllDrivers = selectAllDrivers;
+    window.deselectAllDrivers = deselectAllDrivers;
 
     return {
         /**
