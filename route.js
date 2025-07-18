@@ -284,7 +284,7 @@ geotab.addin.route4me = function () {
         updateDriverCounts();
     }
 
-    // New function to filter drivers based on search
+    // Move these functions to global scope so they can be called from HTML onclick handlers
     function filterDrivers() {
         const searchTerm = document.getElementById('driverSearch').value.toLowerCase();
         const driverItems = document.querySelectorAll('.driver-selection-item');
@@ -304,7 +304,6 @@ geotab.addin.route4me = function () {
         updateDriverCounts();
     }
 
-    // New function to select all visible drivers
     function selectAllDrivers() {
         const checkboxes = document.querySelectorAll('#driverList input[type="checkbox"]');
         
@@ -334,7 +333,6 @@ geotab.addin.route4me = function () {
         updateDriverSelection();
     }
 
-    // New function to deselect all drivers
     function deselectAllDrivers() {
         const checkboxes = document.querySelectorAll('#driverList input[type="checkbox"]');
         
@@ -356,7 +354,6 @@ geotab.addin.route4me = function () {
         updateDriverSelection();
     }
 
-    // New function to update driver counts
     function updateDriverCounts() {
         const totalCountElement = document.getElementById('totalCount');
         const selectedCountElement = document.getElementById('selectedCount');
