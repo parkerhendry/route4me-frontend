@@ -43,7 +43,8 @@ geotab.addin.route4me = function () {
      */
     function initializeApp() {
         console.log('Initializing Route4Me app...');
-        window.location.reload();
+        resetApplication();
+        validateUser();
     }
 
     /**
