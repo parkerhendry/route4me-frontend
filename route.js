@@ -533,8 +533,8 @@ geotab.addin.route4me = function () {
                 return;
             }
             
-            // Show loading indicator
-            showLoadingIndicator('Validating addresses with Route4Me geocoding...');
+            // Start validation job
+            showLoadingIndicator('Starting address validation...');
             
             const response = await fetch(`${BACKEND_URL}/validate-addresses`, {
                 method: 'POST',
@@ -549,30 +549,84 @@ geotab.addin.route4me = function () {
             
             const data = await response.json();
             
-            // Hide loading indicator
-            hideLoadingIndicator();
-            
             if (!response.ok) {
-                throw new Error(data.error || 'Address validation failed');
+                hideLoadingIndicator();
+                throw new Error(data.error || 'Address validation failed to start');
             }
             
             if (data.success) {
-                if (data.invalid_count > 0) {
-                    showAlert(`${data.invalid_count} addresses need correction. Please review and correct them.`, 'warning');
-                    showAddressValidationForm(data.valid_addresses, data.invalid_addresses, fileName);
-                } else {
-                    uploadedAddresses = data.valid_addresses;
-                    showAlert(`All ${data.valid_count} addresses validated successfully!`, 'success');
-                    showFileInfo(fileName, data.valid_count);
-                    await validateDriverAssignments();
-                }
+                // Poll for job status
+                await pollValidationStatus(data.job_id, fileName);
             } else {
-                throw new Error('Address validation failed');
+                hideLoadingIndicator();
+                throw new Error('Address validation failed to start');
             }
             
         } catch (error) {
             hideLoadingIndicator();
             console.error('Address validation error:', error);
+            showAlert(`Address validation failed: ${error.message}`, 'danger');
+        }
+    }
+
+    async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
+        const startTime = Date.now();
+        const maxWaitTime = maxWaitMinutes * 60 * 1000; // Convert to milliseconds
+        
+        try {
+            while (Date.now() - startTime < maxWaitTime) {
+                const response = await fetch(`${BACKEND_URL}/validation-status/${jobId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Validation job not found or expired');
+                    }
+                    throw new Error('Failed to check validation status');
+                }
+                
+                const jobInfo = await response.json();
+                
+                // Update loading indicator with progress
+                if (jobInfo.message && jobInfo.progress !== undefined) {
+                    showLoadingIndicator(`${jobInfo.message} (${jobInfo.progress}%)`);
+                }
+                
+                if (jobInfo.status === 'completed') {
+                    hideLoadingIndicator();
+                    
+                    if (jobInfo.result && jobInfo.result.success) {
+                        const result = jobInfo.result;
+                        
+                        if (result.invalid_count > 0) {
+                            showAlert(`${result.invalid_count} addresses need correction. Please review and correct them.`, 'warning');
+                            showAddressValidationForm(result.valid_addresses, result.invalid_addresses, fileName);
+                        } else {
+                            uploadedAddresses = result.valid_addresses;
+                            showAlert(`All ${result.valid_count} addresses validated successfully!`, 'success');
+                            showFileInfo(fileName, result.valid_count);
+                            await validateDriverAssignments();
+                        }
+                    } else {
+                        throw new Error('Validation completed but returned no results');
+                    }
+                    return;
+                    
+                } else if (jobInfo.status === 'failed') {
+                    hideLoadingIndicator();
+                    throw new Error(jobInfo.error || 'Validation failed');
+                }
+                
+                // Wait before next poll (2 seconds)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            
+            // Timeout reached
+            hideLoadingIndicator();
+            throw new Error(`Validation timed out after ${maxWaitMinutes} minutes`);
+            
+        } catch (error) {
+            hideLoadingIndicator();
+            console.error('Validation polling error:', error);
             showAlert(`Address validation failed: ${error.message}`, 'danger');
         }
     }
@@ -721,12 +775,12 @@ geotab.addin.route4me = function () {
             });
             
             if (correctedAddresses.length === 0) {
-                showAlert('No corrections were made. Use "Proceed with Current Addresses" if you want to continue as-is.', 'danger');
+                showAlert('No corrections were made. Use "Proceed with Current Addresses" if you want to continue as-is.', 'info');
                 return;
             }
             
-            // Show loading indicator
-            showLoadingIndicator(`Validating ${correctedAddresses.length} corrected addresses...`);
+            // Start retry geocoding job
+            showLoadingIndicator('Starting address correction validation...');
             
             const response = await fetch(`${BACKEND_URL}/retry-geocoding`, {
                 method: 'POST',
@@ -741,51 +795,104 @@ geotab.addin.route4me = function () {
             
             const data = await response.json();
             
-            // Hide loading indicator
-            hideLoadingIndicator();
-            
             if (!response.ok) {
-                throw new Error(data.error || 'Address correction failed');
+                hideLoadingIndicator();
+                throw new Error(data.error || 'Address correction failed to start');
             }
             
             if (data.success) {
-                const results = data.results;
-                const stillInvalid = results.filter(r => r.status === 'success' && r.confidence !== 'high');
-                const nowValid = results.filter(r => r.status === 'success' && r.confidence === 'high');
-                const failed = results.filter(r => r.status !== 'success');
-                
-                // Keep unchanged addresses from original invalid list
-                const unchangedAddresses = invalidAddresses.filter((address, index) => {
-                    const correctedInput = document.getElementById(`corrected-${index}`);
-                    return !correctedInput || correctedInput.value.trim() === address.address;
-                });
-                
-                if (stillInvalid.length > 0 || failed.length > 0 || unchangedAddresses.length > 0) {
-                    // Some addresses still need attention
-                    const allValid = (window.validAddresses || []).concat(nowValid);
-                    const allInvalid = [...stillInvalid, ...failed, ...unchangedAddresses];
-                    
-                    showAlert(`${nowValid.length} addresses improved. ${allInvalid.length} still need attention.`, 'warning');
-                    showAddressValidationForm(allValid, allInvalid, 'Updated File');
-                } else {
-                    // All addresses are now valid
-                    uploadedAddresses = (window.validAddresses || []).concat(nowValid);
-                    showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
-                    showCleanFileInfo('Corrected File', uploadedAddresses.length);
-                    
-                    // Clear stored data
-                    window.validAddresses = null;
-                    window.invalidAddresses = null;
-                    
-                    await validateDriverAssignments();
-                }
+                // Poll for job status
+                await pollRetryGeocodingStatus(data.job_id);
             } else {
-                throw new Error('Address correction failed');
+                hideLoadingIndicator();
+                throw new Error('Address correction failed to start');
             }
             
         } catch (error) {
             hideLoadingIndicator();
             console.error('Address correction error:', error);
+            showAlert(`Address correction failed: ${error.message}`, 'danger');
+        }
+    }
+
+    async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
+        const startTime = Date.now();
+        const maxWaitTime = maxWaitMinutes * 60 * 1000; // Convert to milliseconds
+        
+        try {
+            while (Date.now() - startTime < maxWaitTime) {
+                const response = await fetch(`${BACKEND_URL}/validation-status/${jobId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Retry geocoding job not found or expired');
+                    }
+                    throw new Error('Failed to check retry geocoding status');
+                }
+                
+                const jobInfo = await response.json();
+                
+                // Update loading indicator with progress
+                if (jobInfo.message && jobInfo.progress !== undefined) {
+                    showLoadingIndicator(`${jobInfo.message} (${jobInfo.progress}%)`);
+                }
+                
+                if (jobInfo.status === 'completed') {
+                    hideLoadingIndicator();
+                    
+                    if (jobInfo.result && jobInfo.result.success) {
+                        const results = jobInfo.result.results;
+                        const stillInvalid = results.filter(r => r.status === 'success' && r.confidence !== 'high');
+                        const nowValid = results.filter(r => r.status === 'success' && r.confidence === 'high');
+                        const failed = results.filter(r => r.status !== 'success');
+                        
+                        // Keep unchanged addresses from original invalid list
+                        const invalidAddresses = window.invalidAddresses || [];
+                        const unchangedAddresses = invalidAddresses.filter((address, index) => {
+                            const correctedInput = document.getElementById(`corrected-${index}`);
+                            return !correctedInput || correctedInput.value.trim() === address.address;
+                        });
+                        
+                        if (stillInvalid.length > 0 || failed.length > 0 || unchangedAddresses.length > 0) {
+                            // Some addresses still need attention
+                            const allValid = (window.validAddresses || []).concat(nowValid);
+                            const allInvalid = [...stillInvalid, ...failed, ...unchangedAddresses];
+                            
+                            showAlert(`${nowValid.length} addresses improved. ${allInvalid.length} still need attention.`, 'warning');
+                            showAddressValidationForm(allValid, allInvalid, 'Updated File');
+                        } else {
+                            // All addresses are now valid
+                            uploadedAddresses = (window.validAddresses || []).concat(nowValid);
+                            showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
+                            showCleanFileInfo('Corrected File', uploadedAddresses.length);
+                            
+                            // Clear stored data
+                            window.validAddresses = null;
+                            window.invalidAddresses = null;
+                            
+                            await validateDriverAssignments();
+                        }
+                    } else {
+                        throw new Error('Retry geocoding completed but returned no results');
+                    }
+                    return;
+                    
+                } else if (jobInfo.status === 'failed') {
+                    hideLoadingIndicator();
+                    throw new Error(jobInfo.error || 'Retry geocoding failed');
+                }
+                
+                // Wait before next poll (2 seconds)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            
+            // Timeout reached
+            hideLoadingIndicator();
+            throw new Error(`Retry geocoding timed out after ${maxWaitMinutes} minutes`);
+            
+        } catch (error) {
+            hideLoadingIndicator();
+            console.error('Retry geocoding polling error:', error);
             showAlert(`Address correction failed: ${error.message}`, 'danger');
         }
     }
