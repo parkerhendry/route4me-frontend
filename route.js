@@ -644,10 +644,10 @@ geotab.addin.route4me = function () {
             fileUploadArea.style.display = 'none';
         }
         
-        // Hide the instruction paragraph
-        const instructionParagraph = document.querySelector('#addressUploadCard .card-body p.text-muted');
-        if (instructionParagraph) {
-            instructionParagraph.style.display = 'none';
+        // Hide the instruction text paragraph
+        const instructionText = document.querySelector('#addressUploadCard .card-body > p.text-muted');
+        if (instructionText) {
+            instructionText.style.display = 'none';
         }
         
         fileInfo.classList.remove('hidden');
@@ -655,6 +655,7 @@ geotab.addin.route4me = function () {
         const validCount = validAddresses.length;
         const invalidCount = invalidAddresses.length;
         
+        // Replace the entire fileInfo content with ONLY the validation form (no success alert)
         let formHtml = `
             <div class="address-validation-section">
                 <div class="alert alert-warning">
@@ -718,8 +719,8 @@ geotab.addin.route4me = function () {
             </div>
         `;
         
-        // Replace the entire fileDetails content with the validation form
-        document.getElementById('fileDetails').innerHTML = formHtml;
+        // Replace the entire fileInfo innerHTML (this removes the success alert and proceed button)
+        fileInfo.innerHTML = formHtml;
         
         // Store data for later use
         window.validAddresses = validAddresses;
@@ -741,10 +742,10 @@ geotab.addin.route4me = function () {
             fileUploadArea.style.display = 'block';
         }
         
-        // Show the instruction paragraph again
-        const instructionParagraph = document.querySelector('#addressUploadCard .card-body p.text-muted');
-        if (instructionParagraph) {
-            instructionParagraph.style.display = 'block';
+        // Show the instruction text again
+        const instructionText = document.querySelector('#addressUploadCard .card-body > p.text-muted');
+        if (instructionText) {
+            instructionText.style.display = 'block';
         }
         
         // Reset file input
@@ -925,8 +926,8 @@ geotab.addin.route4me = function () {
             
             showAlert(`Proceeding with ${totalCount} addresses (${invalidCount} with low confidence)`, 'warning');
             
-            // Show clean file info without upload interface AND without proceed button
-            showCleanFileInfoForValidation('Current File', totalCount);
+            // Show clean file info without upload interface
+            showCleanFileInfo('Current File', totalCount);
             
             // Clear stored data
             window.validAddresses = null;
@@ -941,7 +942,10 @@ geotab.addin.route4me = function () {
         }
     }
 
-    function showCleanFileInfoForValidation(fileName, addressCount) {
+    /**
+     * Show clean file info without upload interface
+     */
+    function showCleanFileInfo(fileName, addressCount) {
         const fileInfo = document.getElementById('fileInfo');
         if (!fileInfo) return;
         
@@ -951,52 +955,55 @@ geotab.addin.route4me = function () {
             fileUploadArea.style.display = 'none';
         }
         
-        const instructionParagraph = document.querySelector('#addressUploadCard .card-body p.text-muted');
-        if (instructionParagraph) {
-            instructionParagraph.style.display = 'none';
+        const instructionText = document.querySelector('#addressUploadCard .card-body > p.text-muted');
+        if (instructionText) {
+            instructionText.style.display = 'none';
         }
         
         fileInfo.classList.remove('hidden');
         
-        // Note: NO proceed button here - this is for validation contexts only
+        // Simple content without the success alert wrapper - just the proceed button
         const cleanHtml = `
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle me-2"></i>
-                <strong>File:</strong> ${fileName} <br>
-                <strong>Addresses:</strong> ${addressCount} validated
-            </div>
-        `;
-        
-        document.getElementById('fileDetails').innerHTML = cleanHtml;
-    }
-
-    /**
-     * Show clean file info without upload interface
-     */
-    function showCleanFileInfo(fileName, addressCount) {
-        const fileInfo = document.getElementById('fileInfo');
-        if (!fileInfo) return;
-        
-        // Hide the file upload area but keep instruction visible for context
-        const fileUploadArea = document.getElementById('fileUploadArea');
-        if (fileUploadArea) {
-            fileUploadArea.style.display = 'none';
-        }
-        
-        fileInfo.classList.remove('hidden');
-        
-        const cleanHtml = `
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle me-2"></i>
-                <strong>File:</strong> ${fileName} <br>
-                <strong>Addresses:</strong> ${addressCount} validated
+            <div class="file-summary mb-3">
+                <p class="mb-2">
+                    <i class="fas fa-check-circle me-2 text-success"></i>
+                    <strong>File:</strong> ${fileName} <br>
+                    <strong>Addresses:</strong> ${addressCount} validated
+                </p>
             </div>
             <button class="btn btn-primary" onclick="proceedToRouteCreation()">
                 <i class="fas fa-arrow-right me-2"></i>Proceed to Route Creation
             </button>
         `;
         
-        document.getElementById('fileDetails').innerHTML = cleanHtml;
+        fileInfo.innerHTML = cleanHtml;
+    }
+
+    function showCoverageDetails(coverage) {
+        const fileInfo = document.getElementById('fileInfo');
+        if (!fileInfo) return;
+        
+        let coverageHtml = '<div class="mt-3 coverage-details"><h6>Problem Type Coverage:</h6>';
+        
+        for (const [problemType, info] of Object.entries(coverage)) {
+            const badgeClass = info.count > 0 ? 'bg-success' : 'bg-danger';
+            coverageHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span>${problemType} (${info.addresses_count} addresses)</span>
+                    <span class="badge ${badgeClass}">${info.count} drivers</span>
+                </div>
+            `;
+        }
+        
+        coverageHtml += '</div>';
+        
+        // Add to file info (replace existing coverage if present)
+        const existingCoverage = fileInfo.querySelector('.coverage-details');
+        if (existingCoverage) {
+            existingCoverage.outerHTML = coverageHtml;
+        } else {
+            fileInfo.insertAdjacentHTML('beforeend', coverageHtml);
+        }
     }
 
     // New function to validate driver assignments
@@ -1048,19 +1055,6 @@ geotab.addin.route4me = function () {
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span>${problemType} (${info.addresses_count} addresses)</span>
                     <span class="badge ${badgeClass}">${info.count} drivers</span>
-                </div>
-            `;
-        }
-        
-        // Add the proceed button only in coverage details, not in validation contexts
-        const shouldShowProceedButton = !document.querySelector('.address-validation-section');
-        
-        if (shouldShowProceedButton) {
-            coverageHtml += `
-                <div class="mt-3">
-                    <button class="btn btn-primary" onclick="proceedToRouteCreation()">
-                        <i class="fas fa-arrow-right me-2"></i>Proceed to Route Creation
-                    </button>
                 </div>
             `;
         }
