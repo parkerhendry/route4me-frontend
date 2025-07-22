@@ -135,6 +135,8 @@ async function sendVerificationCode(email, resolve, reject) {
         console.log('Send verification code response:', response);
         
         const data = await response.json();
+
+        console.log('Send verification code data:', data);
         
         if (!response.ok) {
             if (response.status === 404) {
@@ -147,6 +149,7 @@ async function sendVerificationCode(email, resolve, reject) {
         
         if (data.success) {
             // Don't resolve here - wait for code verification
+            console.log('Verification code sent successfully');
             showVerificationCodePrompt(email, resolve, reject);
         } else {
             throw new Error('Failed to send verification code');
