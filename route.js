@@ -13,7 +13,6 @@ let subDrivers = [];
 let selectedDrivers = [];
 let uploadedAddresses = [];
 let currentStep = 1;
-let userName = null;
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -909,7 +908,6 @@ async function handleFileUpload(file) {
  */
 async function validateAddresses(addresses, fileName) {
     try {
-        
         const username = await getCurrentUsername();
         
         if (!username) {
