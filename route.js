@@ -1,5 +1,6 @@
 if (typeof geotab !== 'undefined' && geotab.addin) {
-/**
+    console.log("Inside geotab addin")
+    /**
      * Route4Me Integration Add-in
      * @returns {{initialize: Function, focus: Function, blur: Function}}
      */
