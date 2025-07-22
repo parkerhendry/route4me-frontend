@@ -350,7 +350,83 @@ function showVerificationCodeError(errorMessage) {
 function initializeApp() {
     console.log('Initializing Route4Me app...');
     resetApplication();
-    validateUser();
+
+    if (isGeotabEnvironment) {
+        validateUser();
+    }
+    else {
+        startEmailValidation();
+    }
+}
+
+/**
+ * Start the email validation process
+ */
+async function startEmailValidation() {
+    try {
+        showLoadingInCard('userValidationCard', 'Preparing email validation...');
+        
+        // Start the email validation flow
+        const email = await promptForEmailValidation();
+        
+        // After successful email verification, validate the user
+        await validateUserWithEmail(email);
+        
+    } catch (error) {
+        console.error('Email validation process failed:', error);
+        showAlert(`Email validation failed: ${error.message}`, 'danger');
+    }
+}
+
+/**
+ * Validate user credentials with Route4Me using verified email
+ */
+async function validateUserWithEmail(email) {
+    console.log('Validating user credentials with email:', email);
+    
+    try {
+        showLoadingInCard('userValidationCard', 'Validating user credentials...');
+        
+        const response = await fetch(`${BACKEND_URL}/validate-user`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: email // Use the verified email as username
+            })
+        });
+        
+        const data = await response.json();
+
+        console.log('User validation response:', data);
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Validation failed');
+        }
+        
+        if (data.success) {
+            currentUser = data.user;
+            subDrivers = data.sub_drivers || [];
+            
+            showAlert(`Welcome ${currentUser.member_first_name}! Found ${subDrivers.length} drivers.`, 'success');
+            
+            // Show validation success in card
+            showValidationSuccess();
+            
+            // Proceed to driver selection
+            setTimeout(() => {
+                proceedToDriverSelection();
+            }, 2000);
+        } else {
+            throw new Error('User validation failed');
+        }
+        
+    } catch (error) {
+        console.error('User validation error:', error);
+        showAlert(`User validation failed: ${error.message}`, 'danger');
+        showValidationError(error.message);
+    }
 }
 
 /**
