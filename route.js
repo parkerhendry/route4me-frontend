@@ -104,7 +104,21 @@ function showEmailPrompt(resolve, reject) {
  */
 async function sendVerificationCode(email, resolve, reject) {
     try {
-        showLoadingInCard('userValidationCard', 'Checking email and sending verification code...');
+        // Show loading state in the content area instead of replacing the entire card
+        const content = document.getElementById('userValidationContent');
+        if (!content) {
+            reject(new Error('Validation content element not found'));
+            return;
+        }
+        
+        content.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3 text-muted">Checking email and sending verification code...</p>
+            </div>
+        `;
 
         console.log('Sending verification code to:', email);
         
