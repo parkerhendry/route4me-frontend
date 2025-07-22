@@ -369,6 +369,8 @@ async function startEmailValidation() {
         // Start the email validation flow
         const email = await promptForEmailValidation();
         
+        console.log('Email entered for validation:', email);
+
         // After successful email verification, validate the user
         await validateUserWithEmail(email);
         
