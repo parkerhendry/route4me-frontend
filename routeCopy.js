@@ -44,6 +44,7 @@ function getCurrentUsername() {
  * Prompt user to enter their email for validation
  */
 function promptForEmailValidation() {
+    console.log('Prompting for email validation...WOOT!');
     return new Promise((resolve, reject) => {
         showEmailPrompt(resolve, reject);
     });
@@ -355,6 +356,7 @@ function initializeApp() {
         validateUser();
     }
     else {
+        console.log('Not in Geotab environment, starting email validation...');
         startEmailValidation();
     }
 }
@@ -365,6 +367,8 @@ function initializeApp() {
 async function startEmailValidation() {
     try {
         showLoadingInCard('userValidationCard', 'Preparing email validation...');
+
+        console.log('Starting email validation process...');
         
         // Start the email validation flow
         const email = await promptForEmailValidation();
