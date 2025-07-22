@@ -126,6 +126,10 @@ async function sendVerificationCode(email, resolve, reject) {
             }
             throw new Error(data.error || 'Failed to send verification code');
         }
+        else {
+            console.log('Verification code response:', data);
+        }
+
         
         if (data.success) {
             // Don't resolve here - wait for code verification
