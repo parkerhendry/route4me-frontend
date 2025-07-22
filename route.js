@@ -50,9 +50,13 @@ function promptForEmailValidation() {
 }
 
 /**
- * Show email input form
+ * Show email input form (updated to store resolve/reject globally for resend)
  */
 function showEmailPrompt(resolve, reject) {
+    // Store resolve/reject globally for resend functionality
+    window.currentEmailResolve = resolve;
+    window.currentEmailReject = reject;
+    
     const content = document.getElementById('userValidationContent');
     if (!content) {
         reject(new Error('Validation content element not found'));
@@ -124,6 +128,7 @@ async function sendVerificationCode(email, resolve, reject) {
         }
         
         if (data.success) {
+            // Don't resolve here - wait for code verification
             showVerificationCodePrompt(email, resolve, reject);
         } else {
             throw new Error('Failed to send verification code');
@@ -187,7 +192,7 @@ function showVerificationCodePrompt(email, resolve, reject) {
                 <button type="submit" class="btn btn-success">
                     <i class="fas fa-check me-2"></i>Verify Code
                 </button>
-                <button type="button" class="btn btn-link" onclick="sendVerificationCode('${email}', () => {}, () => {})">
+                <button type="button" class="btn btn-link" onclick="resendVerificationCode('${email}')">
                     <i class="fas fa-redo me-2"></i>Resend Code
                 </button>
             </form>
@@ -225,6 +230,45 @@ function showVerificationCodePrompt(email, resolve, reject) {
 }
 
 /**
+ * Resend verification code (helper function for the resend button)
+ */
+async function resendVerificationCode(email) {
+    try {
+        showLoadingInCard('userValidationCard', 'Resending verification code...');
+        
+        const response = await fetch(`${BACKEND_URL}/send-verification-code`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to resend verification code');
+        }
+        
+        if (data.success) {
+            // Re-show the verification form
+            const currentResolve = window.currentEmailResolve;
+            const currentReject = window.currentEmailReject;
+            showVerificationCodePrompt(email, currentResolve, currentReject);
+            showAlert('Verification code resent successfully', 'success');
+        } else {
+            throw new Error('Failed to resend verification code');
+        }
+        
+    } catch (error) {
+        console.error('Resend verification code error:', error);
+        showAlert(`Failed to resend verification code: ${error.message}`, 'danger');
+    }
+}
+
+/**
  * Verify the entered code
  */
 async function verifyCode(email, code, resolve, reject) {
@@ -253,6 +297,7 @@ async function verifyCode(email, code, resolve, reject) {
         }
         
         if (data.success) {
+            // Now resolve with the email after successful verification
             resolve(email);
         } else {
             throw new Error('Code verification failed');
@@ -261,6 +306,7 @@ async function verifyCode(email, code, resolve, reject) {
     } catch (error) {
         console.error('Code verification error:', error);
         showVerificationCodeError(error.message);
+        // Don't reject here to allow user to try again
     }
 }
 
@@ -2107,6 +2153,7 @@ window.cancelAddDriver = cancelAddDriver;
 window.handleAddDriverSubmit = handleAddDriverSubmit;
 window.selectAllDrivers = selectAllDrivers;
 window.deselectAllDrivers = deselectAllDrivers;
+window.resendVerificationCode = resendVerificationCode;
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 
