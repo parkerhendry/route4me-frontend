@@ -13,7 +13,6 @@ let subDrivers = [];
 let selectedDrivers = [];
 let uploadedAddresses = [];
 let currentStep = 1;
-let userName = null;
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -370,6 +369,8 @@ async function startEmailValidation() {
         // Start the email validation flow
         const email = await promptForEmailValidation();
         
+        console.log('Email entered for validation:', email);
+
         // After successful email verification, validate the user
         await validateUserWithEmail(email);
         
@@ -909,8 +910,14 @@ async function handleFileUpload(file) {
  */
 async function validateAddresses(addresses, fileName) {
     try {
+
+        if (isGeotabEnvironment) {
+            const username = await getCurrentUsername();
+        }
+        else {
+            const username = currentUser.member_email;
+        }
         
-        const username = await getCurrentUsername();
         
         if (!username) {
             showAlert('Unable to get username. Please refresh the page.', 'danger');
@@ -1150,7 +1157,13 @@ function cancelAddressCorrection() {
  */
 async function submitCorrectedAddresses() {
     try {
-        const username = await getCurrentUsername();
+
+        if (isGeotabEnvironment) {
+            const username = await getCurrentUsername();
+        }
+        else {
+            const username = currentUser.member_email;
+        }
         
         if (!username) {
             showAlert('Unable to get username. Please refresh the page.', 'danger');
@@ -1645,7 +1658,13 @@ async function createRoutes() {
     }
     
     try {
-        const username = await getCurrentUsername();
+
+        if (isGeotabEnvironment) {
+            const username = await getCurrentUsername();
+        }
+        else {
+            const username = currentUser.member_email;
+        }
         
         if (!username) {
             showAlert('Unable to get username. Please refresh the page.', 'danger');
@@ -2056,7 +2075,12 @@ async function handleAddDriverSubmit() {
     
     try {
         // Get current username
-        const username = await getCurrentUsername();
+        if (isGeotabEnvironment) {
+            const username = await getCurrentUsername();
+        }
+        else {
+            const username = currentUser.member_email;
+        }
         
         // Show loading state
         showLoadingInCard('addDriverCard', 'Adding driver...');
