@@ -105,6 +105,8 @@ function showEmailPrompt(resolve, reject) {
 async function sendVerificationCode(email, resolve, reject) {
     try {
         showLoadingInCard('userValidationCard', 'Checking email and sending verification code...');
+
+        console.log('Sending verification code to:', email);
         
         const response = await fetch(`${BACKEND_URL}/send-verification-code`, {
             method: 'POST',
@@ -115,6 +117,8 @@ async function sendVerificationCode(email, resolve, reject) {
                 email: email
             })
         });
+
+        console.log('Send verification code response:', response);
         
         const data = await response.json();
         
@@ -126,10 +130,6 @@ async function sendVerificationCode(email, resolve, reject) {
             }
             throw new Error(data.error || 'Failed to send verification code');
         }
-        else {
-            console.log('Verification code response:', data);
-        }
-
         
         if (data.success) {
             // Don't resolve here - wait for code verification
