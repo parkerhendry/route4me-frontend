@@ -58,11 +58,11 @@ function showEmailPrompt(resolve, reject) {
     window.currentEmailResolve = resolve;
     window.currentEmailReject = reject;
     
-    //const content = document.getElementById('userValidationContent');
-    //if (!content) {
-    //    reject(new Error('Validation content element not found'));
-    //    return;
-    //}
+    const content = document.getElementById('userValidationContent');
+    if (!content) {
+        reject(new Error('Validation content element not found'));
+        return;
+    }
     
     content.innerHTML = `
         <div class="text-center">
