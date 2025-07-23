@@ -63,6 +63,7 @@ function showEmailPrompt(resolve, reject) {
     console.log('Showing email prompt...2');
     
     const content = document.getElementById('userValidationContent');
+    console.log('Showing email prompt...3', content);
     if (!content) {
         reject(new Error('Validation content element not found'));
         return;
