@@ -18,263 +18,24 @@ geotab.addin.route4me = function () {
     const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
 
     /**
-     * Get current Geotab username using session, or prompt for email if outside Geotab
+     * Get current Geotab username using session
      */
     function getCurrentUsername() {
         return new Promise((resolve, reject) => {
-            if (api && api.getSession) {
-                // Inside Geotab - try to get session
-                api.getSession(function(session) {
-                    console.log('session:', session);
-                    if (session && session.userName) {
-                        resolve(session.userName);
-                    } else {
-                        // Session exists but no username - prompt for email
-                        promptForEmailValidation().then(resolve).catch(reject);
-                    }
-                });
-            } else {
-                // Outside Geotab - prompt for email
-                promptForEmailValidation().then(resolve).catch(reject);
-            }
-        });
-    }
-
-    /**
-     * Prompt user to enter their email for validation
-     */
-    function promptForEmailValidation() {
-        return new Promise((resolve, reject) => {
-            showEmailPrompt(resolve, reject);
-        });
-    }
-
-    /**
-     * Show email input form
-     */
-    function showEmailPrompt(resolve, reject) {
-        const content = document.getElementById('userValidationContent');
-        if (!content) {
-            reject(new Error('Validation content element not found'));
-            return;
-        }
-        
-        content.innerHTML = `
-            <div class="text-center">
-                <i class="fas fa-envelope text-primary" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">Email Verification Required</h5>
-                <p class="text-muted">Please enter your Route4Me email address to continue</p>
-                <form id="emailForm" class="mt-4">
-                    <div class="mb-3">
-                        <input type="email" class="form-control" id="emailInput" 
-                            placeholder="Enter your email address" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-paper-plane me-2"></i>Send Verification Code
-                    </button>
-                </form>
-            </div>
-        `;
-        
-        const emailForm = document.getElementById('emailForm');
-        emailForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('emailInput').value.trim();
-            
-            if (!email) {
-                showAlert('Please enter a valid email address', 'danger');
+            if (!api) {
+                reject(new Error('Geotab API not initialized'));
                 return;
             }
             
-            try {
-                await sendVerificationCode(email, resolve, reject);
-            } catch (error) {
-                showAlert(`Error: ${error.message}`, 'danger');
-                reject(error);
-            }
-        });
-    }
-
-    /**
-     * Send verification code to email
-     */
-    async function sendVerificationCode(email, resolve, reject) {
-        try {
-            showLoadingInCard('userValidationCard', 'Checking email and sending verification code...');
-            
-            const response = await fetch(`${BACKEND_URL}/send-verification-code`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: email
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (!response.ok) {
-                if (response.status === 404) {
-                    showEmailNotFoundError(email);
-                    reject(new Error('Email not found in Route4Me system'));
-                    return;
+            api.getSession(function(session) {
+                console.log('session:', session);
+                if (session && session.userName) {
+                    resolve(session.userName);
+                } else {
+                    reject(new Error('Unable to get username from session'));
                 }
-                throw new Error(data.error || 'Failed to send verification code');
-            }
-            
-            if (data.success) {
-                showVerificationCodePrompt(email, resolve, reject);
-            } else {
-                throw new Error('Failed to send verification code');
-            }
-            
-        } catch (error) {
-            console.error('Send verification code error:', error);
-            showAlert(`Failed to send verification code: ${error.message}`, 'danger');
-            reject(error);
-        }
-    }
-
-    /**
-     * Show email not found error
-     */
-    function showEmailNotFoundError(email) {
-        const content = document.getElementById('userValidationContent');
-        if (!content) return;
-        
-        content.innerHTML = `
-            <div class="text-center">
-                <i class="fas fa-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">Email Not Found</h5>
-                <p class="text-muted">
-                    The email address <strong>${email}</strong> is not associated with a Route4Me account in our system.
-                </p>
-                <p class="text-muted">
-                    Please check your email address or contact your administrator to add your Route4Me API key.
-                </p>
-                <button class="btn btn-primary mt-2" onclick="promptForEmailValidation().then(() => {}).catch(() => {})">
-                    <i class="fas fa-arrow-left me-2"></i>Try Different Email
-                </button>
-            </div>
-        `;
-    }
-
-    /**
-     * Show verification code input form
-     */
-    function showVerificationCodePrompt(email, resolve, reject) {
-        const content = document.getElementById('userValidationContent');
-        if (!content) {
-            reject(new Error('Validation content element not found'));
-            return;
-        }
-        
-        content.innerHTML = `
-            <div class="text-center">
-                <i class="fas fa-shield-alt text-success" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">Verification Code Sent</h5>
-                <p class="text-muted">
-                    We've sent a verification code to<br>
-                    <strong>${email}</strong>
-                </p>
-                <form id="verificationForm" class="mt-4">
-                    <div class="mb-3">
-                        <input type="text" class="form-control text-center" id="verificationCodeInput" 
-                            placeholder="Enter 6-digit code" maxlength="6" required
-                            style="font-size: 1.5rem; letter-spacing: 0.5rem;">
-                    </div>
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-check me-2"></i>Verify Code
-                    </button>
-                    <button type="button" class="btn btn-link" onclick="sendVerificationCode('${email}', () => {}, () => {})">
-                        <i class="fas fa-redo me-2"></i>Resend Code
-                    </button>
-                </form>
-            </div>
-        `;
-        
-        const verificationForm = document.getElementById('verificationForm');
-        const codeInput = document.getElementById('verificationCodeInput');
-        
-        // Auto-submit when 6 digits are entered
-        codeInput.addEventListener('input', (e) => {
-            const value = e.target.value.replace(/\D/g, ''); // Only allow digits
-            e.target.value = value;
-            
-            if (value.length === 6) {
-                verificationForm.dispatchEvent(new Event('submit'));
-            }
-        });
-        
-        verificationForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const code = codeInput.value.trim();
-            
-            if (code.length !== 6) {
-                showAlert('Please enter a 6-digit verification code', 'danger');
-                return;
-            }
-            
-            try {
-                await verifyCode(email, code, resolve, reject);
-            } catch (error) {
-                showAlert(`Verification failed: ${error.message}`, 'danger');
-            }
-        });
-    }
-
-    /**
-     * Verify the entered code
-     */
-    async function verifyCode(email, code, resolve, reject) {
-        try {
-            showLoadingInCard('userValidationCard', 'Verifying code...');
-            
-            const response = await fetch(`${BACKEND_URL}/verify-code`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: email,
-                    code: code
-                })
             });
-            
-            const data = await response.json();
-            
-            if (!response.ok) {
-                if (response.status === 400) {
-                    showVerificationCodeError('Invalid or expired verification code');
-                    return;
-                }
-                throw new Error(data.error || 'Verification failed');
-            }
-            
-            if (data.success) {
-                resolve(email);
-            } else {
-                throw new Error('Code verification failed');
-            }
-            
-        } catch (error) {
-            console.error('Code verification error:', error);
-            showVerificationCodeError(error.message);
-        }
-    }
-
-    /**
-     * Show verification code error
-     */
-    function showVerificationCodeError(errorMessage) {
-        showAlert(errorMessage, 'danger');
-        // Re-focus the input for user to try again
-        const codeInput = document.getElementById('verificationCodeInput');
-        if (codeInput) {
-            codeInput.value = '';
-            codeInput.focus();
-        }
+        });
     }
 
     /**
@@ -317,7 +78,7 @@ geotab.addin.route4me = function () {
     }
 
     /**
-     * Validate user credentials with Route4Me (modified to handle email verification)
+     * Validate user credentials with Route4Me
      */
     async function validateUser() {
         console.log('Validating user credentials...');
@@ -326,11 +87,11 @@ geotab.addin.route4me = function () {
             const username = await getCurrentUsername();
             
             if (!username) {
-                showAlert('Unable to get user credentials. Please refresh the page.', 'danger');
+                showAlert('Unable to get Geotab username. Please refresh the page.', 'danger');
                 return;
             }
 
-            console.log('Current username/email:', username);
+            console.log('Current username:', username);
             
             showLoadingInCard('userValidationCard', 'Validating user credentials...');
             
