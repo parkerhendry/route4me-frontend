@@ -57,6 +57,8 @@ function showEmailPrompt(resolve, reject) {
     // Store resolve/reject globally for resend functionality
     window.currentEmailResolve = resolve;
     window.currentEmailReject = reject;
+
+    console.log('Showing email prompt...');
     
     const content = document.getElementById('userValidationContent');
     if (!content) {
@@ -2354,5 +2356,3 @@ else {
         initializeAppWithStyles(); 
     });
 }
-
-
