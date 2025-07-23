@@ -54,11 +54,13 @@ function promptForEmailValidation() {
  * Show email input form (updated to store resolve/reject globally for resend)
  */
 function showEmailPrompt(resolve, reject) {
+
+    console.log('Showing email prompt...1');
     // Store resolve/reject globally for resend functionality
     window.currentEmailResolve = resolve;
     window.currentEmailReject = reject;
 
-    console.log('Showing email prompt...');
+    console.log('Showing email prompt...2');
     
     const content = document.getElementById('userValidationContent');
     if (!content) {
