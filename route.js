@@ -917,11 +917,13 @@ async function handleFileUpload(file) {
 async function validateAddresses(addresses, fileName) {
     try {
 
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         
@@ -1164,11 +1166,13 @@ function cancelAddressCorrection() {
 async function submitCorrectedAddresses() {
     try {
 
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         if (!username) {
@@ -1665,11 +1669,13 @@ async function createRoutes() {
     
     try {
 
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         if (!username) {
@@ -2081,11 +2087,13 @@ async function handleAddDriverSubmit() {
     
     try {
         // Get current username
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         // Show loading state
