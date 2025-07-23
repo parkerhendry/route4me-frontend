@@ -54,55 +54,85 @@ function promptForEmailValidation() {
  * Show email input form (updated to store resolve/reject globally for resend)
  */
 function showEmailPrompt(resolve, reject) {
+    console.log('Showing email prompt...');
 
-    console.log('Showing email prompt...1');
-    // Store resolve/reject globally for resend functionality
-    window.currentEmailResolve = resolve;
-    window.currentEmailReject = reject;
-
-    console.log('Showing email prompt...2');
-    
-    const content = document.getElementById('userValidationContent');
-    console.log('Showing email prompt...3', content);
-    if (!content) {
-        reject(new Error('Validation content element not found'));
-        return;
+    // Ensure the main container is visible
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
     }
+
+    // Ensure validation card is visible
+    const validationCard = document.getElementById('userValidationCard');
+    if (validationCard) {
+        validationCard.classList.remove('hidden');
+    }
+
+    // Get content element with retry
+    const maxRetries = 3;
+    let retryCount = 0;
     
-    content.innerHTML = `
-        <div class="text-center">
-            <i class="fas fa-envelope text-primary" style="font-size: 3rem;"></i>
-            <h5 class="mt-3">Email Verification Required</h5>
-            <p class="text-muted">Please enter your Route4Me email address to continue</p>
-            <form id="emailForm" class="mt-4">
-                <div class="mb-3">
-                    <input type="email" class="form-control" id="emailInput" 
-                        placeholder="Enter your email address" required>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-paper-plane me-2"></i>Send Verification Code
-                </button>
-            </form>
-        </div>
-    `;
-    
-    const emailForm = document.getElementById('emailForm');
-    emailForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('emailInput').value.trim();
+    function tryGetContent() {
+        const content = document.getElementById('userValidationContent');
+        console.log('Content element found:', content);
         
-        if (!email) {
-            showAlert('Please enter a valid email address', 'danger');
+        if (!content && retryCount < maxRetries) {
+            retryCount++;
+            console.log(`Retry attempt ${retryCount}`);
+            setTimeout(tryGetContent, 100); // Wait 100ms before retry
             return;
         }
         
-        try {
-            await sendVerificationCode(email, resolve, reject);
-        } catch (error) {
-            showAlert(`Error: ${error.message}`, 'danger');
-            reject(error);
+        if (!content) {
+            console.error('Content element not found after retries');
+            reject(new Error('Validation content element not found after multiple attempts'));
+            return;
         }
-    });
+
+        // Content element found, proceed with form creation
+        content.innerHTML = `
+            <div class="text-center">
+                <i class="fas fa-envelope text-primary" style="font-size: 3rem;"></i>
+                <h5 class="mt-3">Email Verification Required</h5>
+                <p class="text-muted">Please enter your Route4Me email address to continue</p>
+                <form id="emailForm" class="mt-4">
+                    <div class="mb-3">
+                        <input type="email" class="form-control" id="emailInput" 
+                            placeholder="Enter your email address" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane me-2"></i>Send Verification Code
+                    </button>
+                </form>
+            </div>
+        `;
+        
+        const emailForm = document.getElementById('emailForm');
+        if (emailForm) {
+            emailForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('emailInput').value.trim();
+                
+                if (!email) {
+                    showAlert('Please enter a valid email address', 'danger');
+                    return;
+                }
+                
+                try {
+                    await sendVerificationCode(email, resolve, reject);
+                } catch (error) {
+                    showAlert(`Error: ${error.message}`, 'danger');
+                    reject(error);
+                }
+            });
+        } else {
+            console.error('Email form not found after content update');
+            reject(new Error('Email form creation failed'));
+        }
+    }
+
+    // Start the content retrieval process
+    tryGetContent();
 }
 
 /**
