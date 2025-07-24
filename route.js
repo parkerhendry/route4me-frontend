@@ -1996,11 +1996,11 @@ function showAlert(message, type = 'info') {
  */
 function showAddDriverForm() {
 
-    if (!currentUser) {
+    if (!currentUser && !isGeotabEnvironment) {
         showAlert('Please verify your email to add a driver.', 'warning');
         return;
     }
-    
+
     // Hide ALL cards and step indicator
     hideCard('userValidationCard');
     hideCard('driverSelectionCard');
