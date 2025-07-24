@@ -2000,6 +2000,11 @@ function showAddDriverForm() {
     hideCard('driverSelectionCard');
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
+
+    if (!currentUser) {
+        showAlert('Please verify your email to add a driver.', 'warning');
+        return;
+    }
     
     // Hide step indicator and main container
     const stepIndicator = document.querySelector('.step-indicator');
