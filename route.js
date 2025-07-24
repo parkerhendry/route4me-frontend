@@ -350,8 +350,8 @@ function showVerificationCodeError(errorMessage) {
  * Initialize the application
  */
 function initializeApp() {
-    console.log('Initializing Route4Me app...');
-    //resetApplication();
+    console.log('Initializing Route4Me app...:)');
+    resetApplication();
 
     if (isGeotabEnvironment) {
         validateUser();
@@ -367,7 +367,6 @@ function initializeApp() {
  */
 async function startEmailValidation() {
     try {
-        //showLoadingInCard('userValidationCard', 'Preparing email validation...');
 
         console.log('Starting email validation process...');
         
