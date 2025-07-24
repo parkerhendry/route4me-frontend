@@ -54,7 +54,7 @@ function promptForEmailValidation() {
  * Show email input form (updated to store resolve/reject globally for resend)
  */
 function showEmailPrompt(resolve, reject) {
-    console.log('Showing email prompt...WOOP BOP!');
+    console.log('Showing email prompt...BEDO BEDO BEDO!');
     
     const content = document.getElementById('userValidationContent');
     if (!content) {
@@ -367,7 +367,7 @@ function initializeApp() {
  */
 async function startEmailValidation() {
     try {
-        showLoadingInCard('userValidationCard', 'Preparing email validation...');
+        //showLoadingInCard('userValidationCard', 'Preparing email validation...');
 
         console.log('Starting email validation process...');
         
