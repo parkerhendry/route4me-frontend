@@ -54,7 +54,7 @@ function promptForEmailValidation() {
  * Show email input form (updated to store resolve/reject globally for resend)
  */
 function showEmailPrompt(resolve, reject) {
-    console.log('Showing email prompt...BADADADA');
+    console.log('Showing email prompt...WOOP BOP!');
     
     const content = document.getElementById('userValidationContent');
     if (!content) {
@@ -351,7 +351,7 @@ function showVerificationCodeError(errorMessage) {
  */
 function initializeApp() {
     console.log('Initializing Route4Me app...');
-    resetApplication();
+    //resetApplication();
 
     if (isGeotabEnvironment) {
         validateUser();
