@@ -2383,14 +2383,40 @@ if (isGeotabEnvironment) {
 else {
     // Running standalone - initialize immediately when DOM is ready
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded');
+        
+        // Check if element exists immediately after DOM load
+        const validationContent = document.getElementById('userValidationContent');
+        console.log('userValidationContent found on load:', validationContent);
+        
+        // Set up a mutation observer to watch for changes
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList') {
+                    console.log('DOM mutation detected:', mutation);
+                    const stillExists = document.getElementById('userValidationContent');
+                    console.log('userValidationContent still exists:', stillExists);
+                }
+            });
+        });
+        
+        // Start observing
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
         elAddin = document.getElementById('route4meApp');
         
-        // Show main content 
         if (elAddin) { 
             elAddin.style.display = 'block'; 
         }
         
-        // Initialize the app for standalone mode
-        initializeAppWithStyles(); 
+        // Check again before calling initialize
+        setTimeout(() => {
+            const stillThere = document.getElementById('userValidationContent');
+            console.log('userValidationContent before initialize:', stillThere);
+            initializeAppWithStyles(); 
+        }, 100);
     });
 }
