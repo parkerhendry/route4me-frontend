@@ -2085,6 +2085,7 @@ async function handleAddDriverSubmit() {
     
     try {
         console.log('Adding driver with data:', formData);
+        console.log('Current user:', currentUser);
         // Get current username
         let username;
 
