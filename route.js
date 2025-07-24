@@ -1995,16 +1995,17 @@ function showAlert(message, type = 'info') {
  * Show add driver form
  */
 function showAddDriverForm() {
-    // Hide ALL cards and step indicator
-    hideCard('userValidationCard');
-    hideCard('driverSelectionCard');
-    hideCard('addressUploadCard');
-    hideCard('routeCreationCard');
 
     if (!currentUser) {
         showAlert('Please verify your email to add a driver.', 'warning');
         return;
     }
+    
+    // Hide ALL cards and step indicator
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
     
     // Hide step indicator and main container
     const stepIndicator = document.querySelector('.step-indicator');
