@@ -2084,6 +2084,7 @@ async function handleAddDriverSubmit() {
     const typesArray = formData.types.split(',').map(type => type.trim().toUpperCase()).filter(type => type);
     
     try {
+        console.log('Adding driver with data:', formData);
         // Get current username
         let username;
 
@@ -2096,7 +2097,9 @@ async function handleAddDriverSubmit() {
         
         // Show loading state
         showLoadingInCard('addDriverCard', 'Adding driver...');
-        
+
+        console.log('Submitting driver data to backend:')
+
         // Submit to backend
         const response = await fetch(`${BACKEND_URL}/add-driver`, {
             method: 'POST',
