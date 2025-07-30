@@ -1085,11 +1085,11 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                             </p>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">More Specific Address (Optional):</label>
+                            <label class="form-label">Corrected Address (Optional):</label>
                             <input type="text" class="form-control corrected-address" 
                                 id="corrected-${index}" 
                                 value="${address.address}"
-                                placeholder="Enter more specific address (optional)">
+                                placeholder="Enter corrected address (optional)">
                         </div>
                     </div>
                 </div>
