@@ -628,7 +628,7 @@ function renderDriverList() {
         <div class="driver-selection-item card mb-3" data-driver-name="${driver.member_first_name} ${driver.member_last_name}" data-driver-email="${driver.member_email}">
             <div class="card-body">
                 <div class="row align-items-center">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" value="${driver.member_id}" 
                                 id="driver-${driver.member_id}" onchange="updateDriverSelection()">
@@ -642,7 +642,7 @@ function renderDriverList() {
                             </label>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="starting-location-selection" id="location-${driver.member_id}" style="display: none;">
                             <label class="form-label fw-bold mb-2">
                                 <i class="fas fa-map-marker-alt me-1"></i>Starting Location:
@@ -661,6 +661,11 @@ function renderDriverList() {
                                 </label>
                             </div>
                         </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2653,6 +2658,277 @@ function hideLoadingInCard(cardId) {
     }
 }
 
+/**
+ * Show edit driver form (NEW FUNCTION)
+ */
+async function showEditDriverForm(driverEmail) {
+    try {
+        // Find the driver in subDrivers
+        const driver = subDrivers.find(d => d.member_email === driverEmail);
+        if (!driver) {
+            showAlert('Driver not found', 'danger');
+            return;
+        }
+
+        // Get current username to fetch driver configuration
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+
+        // Fetch driver configuration from backend
+        const response = await fetch(`${BACKEND_URL}/get-driver-config`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                driver_email: driverEmail
+            })
+        });
+
+        const configData = await response.json();
+        
+        // Hide ALL cards and step indicator
+        hideCard('userValidationCard');
+        hideCard('driverSelectionCard');
+        hideCard('addressUploadCard');
+        hideCard('routeCreationCard');
+        hideCard('jobTypesCard');
+        
+        // Hide step indicator and main container
+        const stepIndicator = document.querySelector('.step-indicator');
+        if (stepIndicator) {
+            stepIndicator.style.display = 'none';
+        }
+        
+        const mainContainer = document.getElementById('route4meApp');
+        if (mainContainer) {
+            mainContainer.style.display = 'none';
+        }
+        
+        // Show add driver card (we'll reuse it for editing)
+        showCard('addDriverCard');
+        
+        // Update card header for editing
+        const cardHeader = document.querySelector('#addDriverCard .card-header h5');
+        if (cardHeader) {
+            cardHeader.innerHTML = '<i class="fas fa-user-edit me-2"></i>Edit Driver';
+        }
+        
+        // Pre-fill form with driver data
+        document.getElementById('memberEmail').value = driver.member_email;
+        document.getElementById('memberEmail').disabled = true; // Don't allow email changes
+        document.getElementById('memberFirstName').value = driver.member_first_name;
+        document.getElementById('memberLastName').value = driver.member_last_name;
+        document.getElementById('memberPassword').value = ''; // Don't pre-fill password for security
+        
+        if (response.ok && configData.success) {
+            document.getElementById('driverHq').value = configData.config.hq || '';
+            document.getElementById('driverHome').value = configData.config.home || '';
+            
+            // Load job types and pre-select the driver's types
+            await loadJobTypesForDriverForm();
+            if (configData.config.types) {
+                setSelectedJobTypes(configData.config.types);
+            }
+        } else {
+            // If no config found, still load job types but don't pre-select any
+            await loadJobTypesForDriverForm();
+            showAlert('Driver configuration not found. Please set HQ, Home, and Job Types.', 'warning');
+        }
+        
+        // Hide results
+        const resultsDiv = document.getElementById('addDriverResults');
+        if (resultsDiv) {
+            resultsDiv.classList.add('hidden');
+            resultsDiv.innerHTML = '';
+        }
+        
+        // Update the submit button to handle editing
+        const submitButton = document.querySelector('#addDriverCard button[onclick="handleAddDriverSubmit()"]');
+        if (submitButton) {
+            submitButton.innerHTML = '<i class="fas fa-save me-2"></i>Update Driver';
+            submitButton.setAttribute('onclick', `handleEditDriverSubmit('${driverEmail}')`);
+        }
+        
+    } catch (error) {
+        console.error('Error loading driver for editing:', error);
+        showAlert('Error loading driver information', 'danger');
+    }
+}
+
+/**
+ * Handle edit driver form submission (NEW FUNCTION)
+ */
+async function handleEditDriverSubmit(originalEmail) {
+    // Prevent form default submission
+    event.preventDefault();
+    
+    // Get selected job types
+    const selectedJobTypes = getSelectedJobTypes();
+    
+    // Get form data
+    const formData = {
+        member_email: document.getElementById('memberEmail').value.trim(),
+        member_first_name: document.getElementById('memberFirstName').value.trim(),
+        member_last_name: document.getElementById('memberLastName').value.trim(),
+        password: document.getElementById('memberPassword').value,
+        hq: document.getElementById('driverHq').value.trim(),
+        home: document.getElementById('driverHome').value.trim(),
+        types: selectedJobTypes
+    };
+    
+    // Validate required fields (password is optional for editing)
+    if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
+        !formData.hq || !formData.home) {
+        showAlert('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    // Validate job types selection
+    if (selectedJobTypes.length === 0) {
+        showAlert('Please select at least one service type', 'danger');
+        return;
+    }
+    
+    try {
+        console.log('Updating driver with data:', formData);
+        
+        // Get current username
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+        
+        // Show loading state
+        showLoadingInCard('addDriverCard', 'Updating driver...');
+
+        // Submit to backend
+        const response = await fetch(`${BACKEND_URL}/edit-driver`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                original_email: originalEmail,
+                driver_data: {
+                    member_email: formData.member_email,
+                    member_first_name: formData.member_first_name,
+                    member_last_name: formData.member_last_name,
+                    password: formData.password || undefined, // Only include if provided
+                    hq: formData.hq,
+                    home: formData.home,
+                    types: formData.types
+                }
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Clear loading state
+        hideLoadingInCard('addDriverCard');
+        
+        if (response.ok && data.success) {
+            showEditDriverResults(data);
+            showAlert('Driver updated successfully!', 'success');
+            
+            // Update the local subDrivers array
+            const driverIndex = subDrivers.findIndex(d => d.member_email === originalEmail);
+            if (driverIndex !== -1) {
+                subDrivers[driverIndex].member_first_name = formData.member_first_name;
+                subDrivers[driverIndex].member_last_name = formData.member_last_name;
+                subDrivers[driverIndex].member_email = formData.member_email;
+            }
+        } else {
+            showEditDriverError(data.error || 'Failed to update driver');
+            showAlert(data.error || 'Failed to update driver', 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error updating driver:', error);
+        
+        // Clear loading state
+        hideLoadingInCard('addDriverCard');
+        
+        showEditDriverError('Network error occurred while updating driver');
+        showAlert('Network error occurred while updating driver', 'danger');
+    }
+}
+
+/**
+ * Show edit driver success results (MODIFIED FUNCTION)
+ */
+function showEditDriverResults(data) {
+    // Instead of showing results, automatically go back to driver selection
+    cancelEditDriver();
+    
+    // Re-render the driver list to reflect the updated information
+    validateUser();
+}
+
+/**
+ * Show edit driver error (NEW FUNCTION)
+ */
+function showEditDriverError(errorMessage) {
+    const resultsDiv = document.getElementById('addDriverResults');
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = `
+        <div class="alert alert-danger">
+            <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Updating Driver</h6>
+            <p class="mb-0">${errorMessage}</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-secondary" onclick="location.reload()">
+                <i class="fas fa-redo me-2"></i>Refresh Page
+            </button>
+        </div>
+    `;
+    
+    resultsDiv.classList.remove('hidden');
+}
+
+/**
+ * Cancel edit driver operation (NEW FUNCTION)
+ */
+function cancelEditDriver() {
+    // Reset form elements that were modified for editing
+    document.getElementById('memberEmail').disabled = false;
+    
+    // Reset card header
+    const cardHeader = document.querySelector('#addDriverCard .card-header h5');
+    if (cardHeader) {
+        cardHeader.innerHTML = '<i class="fas fa-user-plus me-2"></i>Add New Driver';
+    }
+    
+    // Reset submit button
+    const submitButton = document.querySelector('#addDriverCard button[onclick*="handleEditDriverSubmit"]');
+    if (submitButton) {
+        submitButton.innerHTML = '<i class="fas fa-plus me-2"></i>Add Driver';
+        submitButton.setAttribute('onclick', 'handleAddDriverSubmit()');
+    }
+    
+    // Use the existing cancelAddDriver function to handle the rest
+    cancelAddDriver();
+}
+
+/**
+ * Set selected job types (NEW FUNCTION - helper for pre-selecting job types)
+ */
+function setSelectedJobTypes(jobTypesArray) {
+    const checkboxes = document.querySelectorAll('#jobTypesSelection input[type="checkbox"]');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = jobTypesArray.includes(checkbox.value);
+    });
+}
 
 /**
  * Expose global functions
@@ -2682,8 +2958,12 @@ window.showJobTypesResults = showJobTypesResults;
 window.selectAllJobTypes = selectAllJobTypes;
 window.deselectAllJobTypes = deselectAllJobTypes;
 window.getSelectedJobTypes = getSelectedJobTypes;
-
-
+window.showEditDriverForm = showEditDriverForm;
+window.handleEditDriverSubmit = handleEditDriverSubmit;
+window.showEditDriverResults = showEditDriverResults;
+window.showEditDriverError = showEditDriverError;
+window.cancelEditDriver = cancelEditDriver;
+window.setSelectedJobTypes = setSelectedJobTypes;
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 
