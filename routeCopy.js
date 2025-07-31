@@ -13,6 +13,7 @@ let subDrivers = [];
 let selectedDrivers = [];
 let uploadedAddresses = [];
 let currentStep = 1;
+let currentJobTypes = [];
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -1848,24 +1849,6 @@ function showRouteCreationResults(data) {
     resultsDiv.classList.remove('hidden');
 }
 
-// New function to get available drivers from backend
-async function getAvailableDrivers() {
-    try {
-        const response = await fetch(`${BACKEND_URL}/get-drivers`);
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            return data.drivers;
-        } else {
-            console.error('Failed to get available drivers:', data.error);
-            return [];
-        }
-    } catch (error) {
-        console.error('Error fetching available drivers:', error);
-        return [];
-    }
-}
-
 // Add the styles to the page
 function addAdditionalStyles() {
     // Check if styles are already added
@@ -1992,10 +1975,9 @@ function showAlert(message, type = 'info') {
 }
 
 /**
- * Show add driver form
+ * Show add driver form (modified to load job types)
  */
 function showAddDriverForm() {
-
     if (!currentUser && !isGeotabEnvironment) {
         showAlert('Please verify your email to add a driver.', 'warning');
         return;
@@ -2006,6 +1988,7 @@ function showAddDriverForm() {
     hideCard('driverSelectionCard');
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
+    hideCard('jobTypesCard');
     
     // Hide step indicator and main container
     const stepIndicator = document.querySelector('.step-indicator');
@@ -2030,6 +2013,9 @@ function showAddDriverForm() {
         resultsDiv.classList.add('hidden');
         resultsDiv.innerHTML = '';
     }
+    
+    // Load job types for selection
+    loadJobTypesForDriverForm();
 }
 
 /**
@@ -2062,11 +2048,14 @@ function cancelAddDriver() {
 }
 
 /**
- * Handle add driver form submission
+ * Handle add driver form submission (modified to use selected job types)
  */
 async function handleAddDriverSubmit() {
     // Prevent form default submission
     event.preventDefault();
+    
+    // Get selected job types
+    const selectedJobTypes = getSelectedJobTypes();
     
     // Get form data
     const formData = {
@@ -2076,18 +2065,21 @@ async function handleAddDriverSubmit() {
         password: document.getElementById('memberPassword').value,
         hq: document.getElementById('driverHq').value.trim(),
         home: document.getElementById('driverHome').value.trim(),
-        types: document.getElementById('driverTypes').value.trim()
+        types: selectedJobTypes
     };
     
     // Validate required fields
     if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.password || !formData.hq || !formData.home || !formData.types) {
+        !formData.password || !formData.hq || !formData.home) {
         showAlert('Please fill in all required fields', 'danger');
         return;
     }
     
-    // Process types (convert comma-separated string to array)
-    const typesArray = formData.types.split(',').map(type => type.trim().toUpperCase()).filter(type => type);
+    // Validate job types selection
+    if (selectedJobTypes.length === 0) {
+        showAlert('Please select at least one service type', 'danger');
+        return;
+    }
     
     try {
         console.log('Adding driver with data:', formData);
@@ -2122,7 +2114,7 @@ async function handleAddDriverSubmit() {
                     password: formData.password,
                     hq: formData.hq,
                     home: formData.home,
-                    types: typesArray
+                    types: formData.types // This is now an array from getSelectedJobTypes()
                 }
             })
         });
@@ -2198,7 +2190,382 @@ function showAddDriverError(errorMessage) {
 }
 
 /**
- * Helper function to hide loading state in card and restore original content
+ * Show job types management form
+ */
+function showJobTypesForm() {
+    if (!currentUser && !isGeotabEnvironment) {
+        showAlert('Please verify your email to manage job types.', 'warning');
+        return;
+    }
+
+    // Hide ALL cards and step indicator
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    
+    // Hide step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'none';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'none';
+    }
+    
+    // Show job types card
+    showCard('jobTypesCard');
+    
+    // Reset form
+    document.getElementById('addJobTypeForm').reset();
+    
+    // Hide results
+    const resultsDiv = document.getElementById('jobTypesResults');
+    if (resultsDiv) {
+        resultsDiv.classList.add('hidden');
+        resultsDiv.innerHTML = '';
+    }
+    
+    // Load job types
+    loadJobTypes();
+}
+
+/**
+ * Cancel job types management
+ */
+function cancelJobTypes() {
+    hideCard('jobTypesCard');
+    
+    // Show step indicator and main container again
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'flex';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
+    }
+    
+    // Return to the appropriate card based on current step
+    if (currentStep === 1) {
+        showCard('userValidationCard');
+    } else if (currentStep === 2) {
+        showCard('driverSelectionCard');
+    } else if (currentStep === 3) {
+        showCard('addressUploadCard');
+    } else if (currentStep === 4) {
+        showCard('routeCreationCard');
+    }
+}
+
+/**
+ * Load job types for the current user
+ */
+async function loadJobTypes() {
+    try {
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+
+        const response = await fetch(`${BACKEND_URL}/get-job-types`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            currentJobTypes = data.job_types || [];
+            renderJobTypesList();
+        } else {
+            throw new Error(data.error || 'Failed to load job types');
+        }
+    } catch (error) {
+        console.error('Error loading job types:', error);
+        const jobTypesList = document.getElementById('jobTypesList');
+        if (jobTypesList) {
+            jobTypesList.innerHTML = `
+                <div class="text-center text-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p class="mt-2">Error loading job types</p>
+                </div>
+            `;
+        }
+    }
+}
+
+/**
+ * Render the job types list
+ */
+function renderJobTypesList() {
+    const jobTypesList = document.getElementById('jobTypesList');
+    if (!jobTypesList) return;
+
+    if (currentJobTypes.length === 0) {
+        jobTypesList.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-info-circle"></i>
+                <p class="mt-2">No job types added yet</p>
+            </div>
+        `;
+        return;
+    }
+
+    const jobTypesHtml = currentJobTypes.map(jobType => `
+        <div class="job-type-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+            <span><i class="fas fa-tag me-2"></i>${jobType}</span>
+            <button class="btn btn-danger btn-sm" onclick="deleteJobType('${jobType}')" title="Delete job type">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+
+    jobTypesList.innerHTML = jobTypesHtml;
+}
+
+/**
+ * Handle add job type form submission
+ */
+async function handleAddJobType(event) {
+    event.preventDefault();
+    
+    const jobTypeName = document.getElementById('newJobType').value.trim().toUpperCase();
+    
+    if (!jobTypeName) {
+        showAlert('Please enter a job type name', 'danger');
+        return;
+    }
+    
+    if (currentJobTypes.includes(jobTypeName)) {
+        showAlert('This job type already exists', 'warning');
+        return;
+    }
+    
+    try {
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+
+        const response = await fetch(`${BACKEND_URL}/add-job-type`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                job_type: jobTypeName
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            currentJobTypes = data.job_types;
+            renderJobTypesList();
+            document.getElementById('newJobType').value = '';
+            showJobTypesResults(`Job type "${jobTypeName}" added successfully!`, 'success');
+        } else {
+            throw new Error(data.error || 'Failed to add job type');
+        }
+    } catch (error) {
+        console.error('Error adding job type:', error);
+        showJobTypesResults(error.message, 'danger');
+    }
+}
+
+/**
+ * Delete a job type
+ */
+async function deleteJobType(jobTypeName) {
+    if (!confirm(`Are you sure you want to delete the job type "${jobTypeName}"?`)) {
+        return;
+    }
+    
+    try {
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+
+        const response = await fetch(`${BACKEND_URL}/delete-job-type`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                job_type: jobTypeName
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            currentJobTypes = data.job_types;
+            renderJobTypesList();
+            showJobTypesResults(`Job type "${jobTypeName}" deleted successfully!`, 'success');
+        } else {
+            throw new Error(data.error || 'Failed to delete job type');
+        }
+    } catch (error) {
+        console.error('Error deleting job type:', error);
+        showJobTypesResults(error.message, 'danger');
+    }
+}
+
+/**
+ * Show job types operation results
+ */
+function showJobTypesResults(message, type) {
+    const resultsDiv = document.getElementById('jobTypesResults');
+    if (!resultsDiv) return;
+    
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+    
+    resultsDiv.innerHTML = `
+        <div class="alert ${alertClass}">
+            <i class="fas ${icon} me-2"></i>${message}
+        </div>
+    `;
+    
+    resultsDiv.classList.remove('hidden');
+    
+    // Hide after 3 seconds
+    setTimeout(() => {
+        resultsDiv.classList.add('hidden');
+    }, 3000);
+}
+
+/**
+ * Load job types for driver selection (modified version for add driver form)
+ */
+async function loadJobTypesForDriverForm() {
+    try {
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+
+        const response = await fetch(`${BACKEND_URL}/get-job-types`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            renderJobTypesSelection(data.job_types || []);
+        } else {
+            throw new Error(data.error || 'Failed to load job types');
+        }
+    } catch (error) {
+        console.error('Error loading job types for driver form:', error);
+        const jobTypesSelection = document.getElementById('jobTypesSelection');
+        if (jobTypesSelection) {
+            jobTypesSelection.innerHTML = `
+                <div class="text-center text-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p class="mt-2">Error loading job types. Please add some job types first.</p>
+                </div>
+            `;
+        }
+    }
+}
+
+/**
+ * Render job types selection checkboxes for driver form
+ */
+function renderJobTypesSelection(jobTypes) {
+    const jobTypesSelection = document.getElementById('jobTypesSelection');
+    if (!jobTypesSelection) return;
+
+    if (jobTypes.length === 0) {
+        jobTypesSelection.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-info-circle"></i>
+                <p class="mt-2">No job types available. Please add some job types first.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const checkboxesHtml = jobTypes.map(jobType => `
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" value="${jobType}" id="jobType-${jobType}">
+            <label class="form-check-label" for="jobType-${jobType}">
+                <i class="fas fa-tag me-2"></i>${jobType}
+            </label>
+        </div>
+    `).join('');
+
+    jobTypesSelection.innerHTML = `
+        <div class="mb-2">
+            <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="selectAllJobTypes()">
+                <i class="fas fa-check-square me-1"></i>Select All
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="deselectAllJobTypes()">
+                <i class="fas fa-square me-1"></i>Deselect All
+            </button>
+        </div>
+        ${checkboxesHtml}
+    `;
+}
+
+/**
+ * Select all job types in driver form
+ */
+function selectAllJobTypes() {
+    const checkboxes = document.querySelectorAll('#jobTypesSelection input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+/**
+ * Deselect all job types in driver form
+ */
+function deselectAllJobTypes() {
+    const checkboxes = document.querySelectorAll('#jobTypesSelection input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+/**
+ * Get selected job types from driver form
+ */
+function getSelectedJobTypes() {
+    const checkboxes = document.querySelectorAll('#jobTypesSelection input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(checkbox => checkbox.value);
+}
+
+/**
+ * Helper function to hide loading state in card and restore original content (modified for new job types UI)
  */
 function hideLoadingInCard(cardId) {
     const card = document.getElementById(cardId);
@@ -2241,10 +2608,13 @@ function hideLoadingInCard(cardId) {
                                 <input type="text" class="form-control" id="driverHome" required>
                             </div>
                             <div class="mb-3">
-                                <label for="driverTypes" class="form-label">Service Types (comma-separated)</label>
-                                <textarea class="form-control" id="driverTypes" rows="5" 
-                                        placeholder="Enter service types separated by commas (e.g., BOUNDARY SURVEY, HOUSE STAKE, FINAL SURVEY)"></textarea>
-                                <small class="form-text text-muted">Enter the types of services this driver can handle</small>
+                                <label for="driverTypes" class="form-label">Service Types</label>
+                                <div id="jobTypesSelection" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading job types...
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">Select the types of services this driver can handle</small>
                             </div>
                         </div>
                     </div>
@@ -2261,6 +2631,9 @@ function hideLoadingInCard(cardId) {
                     <!-- Results will be shown here -->
                 </div>
             `;
+            
+            // Reload job types after restoring the form
+            loadJobTypesForDriverForm();
         }
     } else {
         // For other cards, try to remove loading overlay if it exists
@@ -2299,6 +2672,18 @@ window.handleAddDriverSubmit = handleAddDriverSubmit;
 window.selectAllDrivers = selectAllDrivers;
 window.deselectAllDrivers = deselectAllDrivers;
 window.resendVerificationCode = resendVerificationCode;
+window.showJobTypesForm = showJobTypesForm;
+window.cancelJobTypes = cancelJobTypes;
+window.loadJobTypesForDriverForm = loadJobTypesForDriverForm;
+window.loadJobTypes = loadJobTypes;
+window.handleAddJobType = handleAddJobType;
+window.deleteJobType = deleteJobType;
+window.showJobTypesResults = showJobTypesResults;
+window.selectAllJobTypes = selectAllJobTypes;
+window.deselectAllJobTypes = deselectAllJobTypes;
+window.getSelectedJobTypes = getSelectedJobTypes;
+
+
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 
