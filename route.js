@@ -664,7 +664,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!
                         </button>
                     </div>
                 </div>
@@ -2866,53 +2866,11 @@ async function handleEditDriverSubmit(originalEmail) {
  * Show edit driver success results (MODIFIED FUNCTION)
  */
 function showEditDriverResults(data) {
-    // Re-render the driver list to show updated information
+    // Instead of showing results, automatically go back to driver selection
+    cancelEditDriver();
+    
+    // Re-render the driver list to reflect the updated information
     renderDriverList();
-    
-    // Hide the edit driver form/results and show the driver list
-    const addDriverCard = document.getElementById('addDriverCard');
-    const driverListCard = document.getElementById('driverListCard');
-    const resultsDiv = document.getElementById('addDriverResults');
-    
-    if (addDriverCard) addDriverCard.classList.add('hidden');
-    if (driverListCard) driverListCard.classList.remove('hidden');
-    if (resultsDiv) resultsDiv.classList.add('hidden');
-    
-    // Optional: Show a brief success message that auto-disappears
-    showTemporarySuccessMessage(`Driver ${data.driver_email} updated successfully!`);
-}
-
-/**
- * Show temporary success message (HELPER FUNCTION)
- */
-function showTemporarySuccessMessage(message) {
-    // Create or get existing temporary message element
-    let tempMessage = document.getElementById('tempSuccessMessage');
-    if (!tempMessage) {
-        tempMessage = document.createElement('div');
-        tempMessage.id = 'tempSuccessMessage';
-        tempMessage.className = 'alert alert-success position-fixed';
-        tempMessage.style.cssText = `
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            min-width: 300px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        `;
-        document.body.appendChild(tempMessage);
-    }
-    
-    tempMessage.innerHTML = `
-        <i class="fas fa-check-circle me-2"></i>${message}
-    `;
-    tempMessage.style.display = 'block';
-    
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-        if (tempMessage) {
-            tempMessage.style.display = 'none';
-        }
-    }, 3000);
 }
 
 /**
