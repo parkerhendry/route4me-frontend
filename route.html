@@ -39,7 +39,7 @@
                                 <i class="fas fa-user-plus me-2"></i>Add Driver
                             </button>
                             <button class="btn btn-refresh" onclick="showJobTypesForm()">
-                                <i class="fas fa-tags me-2"></i>Add Job Types
+                                <i class="fas fa-tags me-2"></i>Add Job Types!
                             </button>
                         </div>
                     </div>
@@ -271,6 +271,10 @@
                             <input type="text" class="form-control" id="newJobType" required 
                                 placeholder="e.g., BOUNDARY SURVEY">
                             <small class="form-text text-muted">Job type will be converted to uppercase</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newJobDuration" class="form-label">Duration (minutes)</label>
+                            <input type="number" class="form-control" id="newJobDuration" min="1" required>
                         </div>
                         <button type="submit" class="btn btn-success" onclick="handleAddJobType(event)">
                             <i class="fas fa-plus me-2"></i>Add Job Type
