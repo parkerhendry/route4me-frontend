@@ -54,9 +54,7 @@ function promptForEmailValidation() {
  * Show email input form (updated to store resolve/reject globally for resend)
  */
 function showEmailPrompt(resolve, reject) {
-    // Store resolve/reject globally for resend functionality
-    window.currentEmailResolve = resolve;
-    window.currentEmailReject = reject;
+    console.log('Showing email prompt...BEDO BEDO BEDO!');
     
     const content = document.getElementById('userValidationContent');
     if (!content) {
@@ -64,21 +62,24 @@ function showEmailPrompt(resolve, reject) {
         return;
     }
     
+    // Store resolve/reject globally
+    window.currentEmailResolve = resolve;
+    window.currentEmailReject = reject;
+    
+    // Don't create nested div.text-center - the parent already has this class
     content.innerHTML = `
-        <div class="text-center">
-            <i class="fas fa-envelope text-primary" style="font-size: 3rem;"></i>
-            <h5 class="mt-3">Email Verification Required</h5>
-            <p class="text-muted">Please enter your Route4Me email address to continue</p>
-            <form id="emailForm" class="mt-4">
-                <div class="mb-3">
-                    <input type="email" class="form-control" id="emailInput" 
-                        placeholder="Enter your email address" required>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-paper-plane me-2"></i>Send Verification Code
-                </button>
-            </form>
-        </div>
+        <i class="fas fa-envelope text-primary" style="font-size: 3rem;"></i>
+        <h5 class="mt-3">Email Verification Required</h5>
+        <p class="text-muted">Please enter your Route4Me email address to continue</p>
+        <form id="emailForm" class="mt-4">
+            <div class="mb-3">
+                <input type="email" class="form-control" id="emailInput" 
+                    placeholder="Enter your email address" required>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-paper-plane me-2"></i>Send Verification Code
+            </button>
+        </form>
     `;
     
     const emailForm = document.getElementById('emailForm');
@@ -349,7 +350,7 @@ function showVerificationCodeError(errorMessage) {
  * Initialize the application
  */
 function initializeApp() {
-    console.log('Initializing Route4Me app...');
+    console.log('Initializing Route4Me app...:)');
     resetApplication();
 
     if (isGeotabEnvironment) {
@@ -366,7 +367,6 @@ function initializeApp() {
  */
 async function startEmailValidation() {
     try {
-        showLoadingInCard('userValidationCard', 'Preparing email validation...');
 
         console.log('Starting email validation process...');
         
@@ -915,11 +915,13 @@ async function handleFileUpload(file) {
 async function validateAddresses(addresses, fileName) {
     try {
 
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         
@@ -1083,11 +1085,11 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                             </p>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">More Specific Address (Optional):</label>
+                            <label class="form-label">Corrected Address (Optional):</label>
                             <input type="text" class="form-control corrected-address" 
                                 id="corrected-${index}" 
                                 value="${address.address}"
-                                placeholder="Enter more specific address (optional)">
+                                placeholder="Enter corrected address (optional)">
                         </div>
                     </div>
                 </div>
@@ -1162,11 +1164,13 @@ function cancelAddressCorrection() {
 async function submitCorrectedAddresses() {
     try {
 
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         if (!username) {
@@ -1663,11 +1667,13 @@ async function createRoutes() {
     
     try {
 
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         if (!username) {
@@ -1989,6 +1995,12 @@ function showAlert(message, type = 'info') {
  * Show add driver form
  */
 function showAddDriverForm() {
+
+    if (!currentUser && !isGeotabEnvironment) {
+        showAlert('Please verify your email to add a driver.', 'warning');
+        return;
+    }
+
     // Hide ALL cards and step indicator
     hideCard('userValidationCard');
     hideCard('driverSelectionCard');
@@ -2078,17 +2090,23 @@ async function handleAddDriverSubmit() {
     const typesArray = formData.types.split(',').map(type => type.trim().toUpperCase()).filter(type => type);
     
     try {
+        console.log('Adding driver with data:', formData);
+        console.log('Current user:', currentUser);
         // Get current username
+        let username;
+
         if (isGeotabEnvironment) {
-            const username = await getCurrentUsername();
+            username = await getCurrentUsername();
         }
         else {
-            const username = currentUser.member_email;
+            username = currentUser.member_email;
         }
         
         // Show loading state
         showLoadingInCard('addDriverCard', 'Adding driver...');
-        
+
+        console.log('Submitting driver data to backend:')
+
         // Submit to backend
         const response = await fetch(`${BACKEND_URL}/add-driver`, {
             method: 'POST',
@@ -2343,16 +2361,40 @@ if (isGeotabEnvironment) {
 else {
     // Running standalone - initialize immediately when DOM is ready
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded');
+        
+        // Check if element exists immediately after DOM load
+        const validationContent = document.getElementById('userValidationContent');
+        console.log('userValidationContent found on load:', validationContent);
+        
+        // Set up a mutation observer to watch for changes
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList') {
+                    console.log('DOM mutation detected:', mutation);
+                    const stillExists = document.getElementById('userValidationContent');
+                    console.log('userValidationContent still exists:', stillExists);
+                }
+            });
+        });
+        
+        // Start observing
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
         elAddin = document.getElementById('route4meApp');
         
-        // Show main content 
         if (elAddin) { 
             elAddin.style.display = 'block'; 
         }
         
-        // Initialize the app for standalone mode
-        initializeAppWithStyles(); 
+        // Check again before calling initialize
+        setTimeout(() => {
+            const stillThere = document.getElementById('userValidationContent');
+            console.log('userValidationContent before initialize:', stillThere);
+            initializeAppWithStyles(); 
+        }, 100);
     });
 }
-
-
