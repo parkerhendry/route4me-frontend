@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!!!
                         </button>
                     </div>
                 </div>
@@ -1058,29 +1058,33 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     
     fileInfo.classList.remove('hidden');
     
-    // Filter out manually adjusted addresses from invalidAddresses
+    // Filter out manually adjusted addresses and create mapping
     const manualCoordinates = window.manualCoordinates || {};
-    const filteredInvalidAddresses = invalidAddresses.filter((address, index) => {
-        // Check if this address has been manually adjusted
-        const hasManualCoords = manualCoordinates[index] && manualCoordinates[index].manually_adjusted;
-        return !hasManualCoords;
-    });
+    const filteredInvalidAddresses = [];
+    const manuallyAdjustedAddresses = [];
+    const originalToFilteredIndexMap = {};
     
-    // Add manually adjusted addresses to valid addresses
-    const manuallyAdjustedAddresses = invalidAddresses.filter((address, index) => {
-        const hasManualCoords = manualCoordinates[index] && manualCoordinates[index].manually_adjusted;
+    invalidAddresses.forEach((address, originalIndex) => {
+        const hasManualCoords = manualCoordinates[originalIndex] && manualCoordinates[originalIndex].manually_adjusted;
+        
         if (hasManualCoords) {
-            // Update the address with manual coordinates
-            return {
+            // Add to manually adjusted (move to valid)
+            manuallyAdjustedAddresses.push({
                 ...address,
-                lat: manualCoordinates[index].lat,
-                lng: manualCoordinates[index].lng,
+                lat: manualCoordinates[originalIndex].lat,
+                lng: manualCoordinates[originalIndex].lng,
                 confidence: 'manually_adjusted',
                 manually_adjusted: true
-            };
+            });
+        } else {
+            // Keep in invalid list and track the index mapping
+            originalToFilteredIndexMap[originalIndex] = filteredInvalidAddresses.length;
+            filteredInvalidAddresses.push({
+                ...address,
+                originalIndex: originalIndex // Store original index for reference
+            });
         }
-        return false;
-    }).filter(Boolean);
+    });
     
     const allValidAddresses = [...validAddresses, ...manuallyAdjustedAddresses];
     
@@ -1122,7 +1126,8 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                 <div class="invalid-addresses-list">
     `;
     
-    filteredInvalidAddresses.forEach((address, index) => {
+    filteredInvalidAddresses.forEach((address, filteredIndex) => {
+        const originalIndex = address.originalIndex;
         formHtml += `
             <div class="invalid-address-item card mb-3">
                 <div class="card-body">
@@ -1138,16 +1143,17 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                         <div class="col-md-4">
                             <label class="form-label">Corrected Address (Optional):</label>
                             <input type="text" class="form-control corrected-address" 
-                                id="corrected-${index}" 
+                                id="corrected-${filteredIndex}" 
+                                data-original-index="${originalIndex}"
                                 value="${address.address}"
                                 placeholder="Enter corrected address (optional)">
                         </div>
                         <div class="col-md-3 text-center">
                             ${address.lat && address.lng ? `
-                                <button class="btn btn-info btn-sm mb-2" onclick="showLocationMap(${index}, ${address.lat}, ${address.lng}, '${address.address.replace(/'/g, "\\'")}')">
+                                <button class="btn btn-info btn-sm mb-2" onclick="showLocationMap(${originalIndex}, ${address.lat}, ${address.lng}, '${address.address.replace(/'/g, "\\'")}')">
                                     <i class="fas fa-map-marker-alt me-1"></i>View on Map
                                 </button>
-                                <div class="small text-muted" id="coords-display-${index}">
+                                <div class="small text-muted" id="coords-display-${originalIndex}">
                                     ${address.lat.toFixed(6)}, ${address.lng.toFixed(6)}
                                 </div>
                             ` : `
@@ -1188,6 +1194,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     // Store data for later use (update with filtered data)
     window.validAddresses = allValidAddresses;
     window.invalidAddresses = filteredInvalidAddresses;
+    window.originalToFilteredIndexMap = originalToFilteredIndexMap;
     // Keep existing manualCoordinates
 }
 
@@ -1457,15 +1464,19 @@ async function submitCorrectedAddresses() {
         const manualCoordinates = window.manualCoordinates || {};
         
         // Collect corrected addresses and manual coordinates
-        invalidAddresses.forEach((address, index) => {
-            const correctedInput = document.getElementById(`corrected-${index}`);
-            const hasManualCoords = manualCoordinates[index];
+        invalidAddresses.forEach((address, filteredIndex) => {
+            const originalIndex = address.originalIndex;
+            const correctedInput = document.getElementById(`corrected-${filteredIndex}`);
+            const hasManualCoords = manualCoordinates[originalIndex];
             const hasAddressChange = correctedInput && correctedInput.value.trim() !== address.address;
             
             // Include if there are manual coordinates OR address changes
             if (hasManualCoords || hasAddressChange) {
                 const correctionData = {
-                    original_data: address
+                    original_data: {
+                        ...address,
+                        originalIndex: originalIndex // Include original index for backend reference
+                    }
                 };
                 
                 // If there are manual coordinates, use them
@@ -1571,9 +1582,10 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                     // Keep unchanged addresses from original invalid list (excluding manually adjusted ones)
                     const invalidAddresses = window.invalidAddresses || [];
                     const manualCoordinates = window.manualCoordinates || {};
-                    const unchangedAddresses = invalidAddresses.filter((address, index) => {
-                        const correctedInput = document.getElementById(`corrected-${index}`);
-                        const hasManualCoords = manualCoordinates[index];
+                    const unchangedAddresses = invalidAddresses.filter((address, filteredIndex) => {
+                        const originalIndex = address.originalIndex;
+                        const correctedInput = document.getElementById(`corrected-${filteredIndex}`);
+                        const hasManualCoords = manualCoordinates[originalIndex];
                         const hasAddressChange = correctedInput && correctedInput.value.trim() !== address.address;
                         
                         // Keep if no changes were made AND not manually adjusted
@@ -1626,6 +1638,56 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
 }
 
 /**
+ * Save the manually adjusted location (MODIFIED to work with original indices)
+ */
+function saveLocationChanges() {
+    if (currentAddressIndex === null) return;
+    
+    const newLat = parseFloat(document.getElementById('adjustmentLat').value);
+    const newLng = parseFloat(document.getElementById('adjustmentLng').value);
+    
+    // Store the manual coordinates using original index
+    if (!window.manualCoordinates) {
+        window.manualCoordinates = {};
+    }
+    window.manualCoordinates[currentAddressIndex] = {
+        lat: newLat,
+        lng: newLng,
+        manually_adjusted: true
+    };
+    
+    // Update the coordinates display in the form (if it exists)
+    const coordsDisplay = document.getElementById(`coords-display-${currentAddressIndex}`);
+    if (coordsDisplay) {
+        coordsDisplay.innerHTML = `${newLat.toFixed(6)}, ${newLng.toFixed(6)}<br><small class="text-success"><i class="fas fa-check"></i> Manually adjusted</small>`;
+    }
+    
+    // Update the invalid address data if it exists in the current filtered list
+    if (window.invalidAddresses) {
+        const addressInFilteredList = window.invalidAddresses.find(addr => addr.originalIndex === currentAddressIndex);
+        if (addressInFilteredList) {
+            addressInFilteredList.lat = newLat;
+            addressInFilteredList.lng = newLng;
+            addressInFilteredList.manually_adjusted = true;
+        }
+    }
+    
+    // Hide location adjustment card and return to address upload
+    cancelLocationAdjustment();
+    
+    // Show success message
+    showAlert(`Location updated for address. It will be moved to valid addresses.`, 'success');
+    
+    // Refresh the validation form to remove this address from invalid list
+    if (window.validAddresses && window.invalidAddresses) {
+        showAddressValidationForm(window.validAddresses, window.invalidAddresses, 'Updated File');
+    }
+    
+    // Reset current values
+    currentAddressIndex = null;
+}
+
+/**
  * Proceed with current addresses without corrections (MODIFIED)
  */
 function proceedWithCurrentAddresses() {
@@ -1636,12 +1698,13 @@ function proceedWithCurrentAddresses() {
         const manualCoordinates = window.manualCoordinates || {};
         
         // Apply manual coordinates to invalid addresses before combining
-        const updatedInvalidAddresses = invalidAddresses.map((address, index) => {
-            if (manualCoordinates[index]) {
+        const updatedInvalidAddresses = invalidAddresses.map((address, filteredIndex) => {
+            const originalIndex = address.originalIndex;
+            if (manualCoordinates[originalIndex]) {
                 return {
                     ...address,
-                    lat: manualCoordinates[index].lat,
-                    lng: manualCoordinates[index].lng,
+                    lat: manualCoordinates[originalIndex].lat,
+                    lng: manualCoordinates[originalIndex].lng,
                     confidence: 'manually_adjusted',
                     manually_adjusted: true
                 };
@@ -1687,6 +1750,7 @@ function proceedWithCurrentAddresses() {
         showAlert('Error proceeding with addresses. Please try again.', 'danger');
     }
 }
+
 /**
  * Show clean file info without upload interface
  */
