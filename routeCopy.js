@@ -1069,7 +1069,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                     <strong>Addresses Needing Attention:</strong> ${invalidCount}
                 </p>
                 <p class="mb-0">
-                    <strong>Route4Me is not fully confident in the location of these addresses, could you be more specific?</strong>
+                    <strong>Route4Me is not fully confident in the location of these addresses, would you like to make any corrections?</strong>
                 </p>
             </div>
             
@@ -2329,9 +2329,13 @@ function renderJobTypesList() {
     }
 
     const jobTypesHtml = currentJobTypes.map(jobType => `
-        <div class="job-type-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
-            <span><i class="fas fa-tag me-2"></i>${jobType}</span>
-            <button class="btn btn-danger btn-sm" onclick="deleteJobType('${jobType}')" title="Delete job type">
+        <div class="job-type-item d-flex justify-content-between align-items-center mb-2 p-3 border rounded">
+            <div>
+                <span class="fw-bold"><i class="fas fa-tag me-2"></i>${jobType.name}</span>
+                <br>
+                <small class="text-muted"><i class="fas fa-clock me-1"></i>${jobType.duration} minutes</small>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="deleteJobType('${jobType.name}')" title="Delete job type">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
@@ -2347,13 +2351,21 @@ async function handleAddJobType(event) {
     event.preventDefault();
     
     const jobTypeName = document.getElementById('newJobType').value.trim().toUpperCase();
+    const jobDuration = document.getElementById('newJobDuration').value.trim();
     
     if (!jobTypeName) {
         showAlert('Please enter a job type name', 'danger');
         return;
     }
     
-    if (currentJobTypes.includes(jobTypeName)) {
+    if (!jobDuration || isNaN(jobDuration) || parseInt(jobDuration) <= 0) {
+        showAlert('Please enter a valid duration in minutes', 'danger');
+        return;
+    }
+    
+    // Check if job type already exists
+    const existingJob = currentJobTypes.find(job => job.name === jobTypeName);
+    if (existingJob) {
         showAlert('This job type already exists', 'warning');
         return;
     }
@@ -2373,7 +2385,8 @@ async function handleAddJobType(event) {
             },
             body: JSON.stringify({
                 username: username,
-                job_type: jobTypeName
+                job_type: jobTypeName,
+                duration: parseInt(jobDuration)
             })
         });
 
@@ -2383,7 +2396,8 @@ async function handleAddJobType(event) {
             currentJobTypes = data.job_types;
             renderJobTypesList();
             document.getElementById('newJobType').value = '';
-            showJobTypesResults(`Job type "${jobTypeName}" added successfully!`, 'success');
+            document.getElementById('newJobDuration').value = '';
+            showJobTypesResults(`Job type "${jobTypeName}" with ${jobDuration} minute duration added successfully!`, 'success');
         } else {
             throw new Error(data.error || 'Failed to add job type');
         }
@@ -2397,9 +2411,6 @@ async function handleAddJobType(event) {
  * Delete a job type
  */
 async function deleteJobType(jobTypeName) {
-    if (!confirm(`Are you sure you want to delete the job type "${jobTypeName}"?`)) {
-        return;
-    }
     
     try {
         let username;
@@ -2521,9 +2532,10 @@ function renderJobTypesSelection(jobTypes) {
 
     const checkboxesHtml = jobTypes.map(jobType => `
         <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" value="${jobType}" id="jobType-${jobType}">
-            <label class="form-check-label" for="jobType-${jobType}">
-                <i class="fas fa-tag me-2"></i>${jobType}
+            <input class="form-check-input" type="checkbox" value="${jobType.name}" id="jobType-${jobType.name}">
+            <label class="form-check-label" for="jobType-${jobType.name}">
+                <i class="fas fa-tag me-2"></i>${jobType.name}
+                <small class="text-muted ms-2">(<i class="fas fa-clock me-1"></i>${jobType.duration} min)</small>
             </label>
         </div>
     `).join('');

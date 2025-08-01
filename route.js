@@ -14,6 +14,9 @@ let selectedDrivers = [];
 let uploadedAddresses = [];
 let currentStep = 1;
 let currentJobTypes = [];
+let currentMap = null;
+let currentMarker = null;
+let currentAddressIndex = null;
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -1069,7 +1072,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                     <strong>Addresses Needing Attention:</strong> ${invalidCount}
                 </p>
                 <p class="mb-0">
-                    <strong>Route4Me is not fully confident in the location of these addresses, could you be more specific?</strong>
+                    <strong>Route4Me is not fully confident in the location of these addresses, would you like to make any corrections?</strong>
                 </p>
             </div>
             
@@ -1083,19 +1086,35 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
             <div class="invalid-address-item card mb-3">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-5">
                             <h6 class="card-title">${address.builder_name} - ${address.problem_type}</h6>
                             <p class="text-muted mb-2">
                                 <strong>Address:</strong> ${address.address}<br>
                                 <strong>Confidence:</strong> ${address.confidence || 'Low confidence'}
+                                ${address.lat && address.lng ? `<br><strong>Coordinates:</strong> ${address.lat.toFixed(6)}, ${address.lng.toFixed(6)}` : ''}
                             </p>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Corrected Address (Optional):</label>
                             <input type="text" class="form-control corrected-address" 
                                 id="corrected-${index}" 
                                 value="${address.address}"
                                 placeholder="Enter corrected address (optional)">
+                        </div>
+                        <div class="col-md-3 text-center">
+                            ${address.lat && address.lng ? `
+                                <button class="btn btn-info btn-sm mb-2" onclick="showLocationMap(${index}, ${address.lat}, ${address.lng}, '${address.address.replace(/'/g, "\\'")}')">
+                                    <i class="fas fa-map-marker-alt me-1"></i>View on Map
+                                </button>
+                                <div class="small text-muted" id="coords-display-${index}">
+                                    ${address.lat.toFixed(6)}, ${address.lng.toFixed(6)}
+                                </div>
+                            ` : `
+                                <div class="text-muted small">
+                                    <i class="fas fa-exclamation-triangle"></i><br>
+                                    No coordinates available
+                                </div>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -1120,6 +1139,47 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                 </div>
             </div>
         </div>
+        
+        <!-- Map Modal -->
+        <div class="modal fade" id="mapModal" tabindex="-1" aria-labelledby="mapModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="mapModalLabel">
+                            <i class="fas fa-map-marker-alt me-2"></i>Adjust Location
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <strong>Address:</strong> <span id="mapModalAddress"></span>
+                        </div>
+                        <div class="mb-3">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Latitude:</label>
+                                    <input type="number" class="form-control" id="modalLat" step="0.000001" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Longitude:</label>
+                                    <input type="number" class="form-control" id="modalLng" step="0.000001" readonly>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Drag the marker on the map to adjust the location</small>
+                        </div>
+                        <div id="locationMap" style="height: 400px; width: 100%;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="saveLocationChanges()">
+                            <i class="fas fa-check me-2"></i>Save Location
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
     
     // Replace the entire fileInfo innerHTML (this removes the success alert and proceed button)
@@ -1128,6 +1188,110 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     // Store data for later use
     window.validAddresses = validAddresses;
     window.invalidAddresses = invalidAddresses;
+    window.manualCoordinates = {}; // Track manually adjusted coordinates
+}
+
+/**
+ * Show location on map for manual adjustment
+ */
+function showLocationMap(addressIndex, lat, lng, address) {
+    currentAddressIndex = addressIndex;
+    
+    // Set modal content
+    document.getElementById('mapModalAddress').textContent = address;
+    document.getElementById('modalLat').value = lat;
+    document.getElementById('modalLng').value = lng;
+    
+    // Show the modal
+    const mapModal = new bootstrap.Modal(document.getElementById('mapModal'));
+    mapModal.show();
+    
+    // Initialize map after modal is shown
+    document.getElementById('mapModal').addEventListener('shown.bs.modal', function() {
+        initializeLocationMap(lat, lng);
+    }, { once: true });
+}
+
+/**
+ * Initialize the Leaflet map
+ */
+function initializeLocationMap(lat, lng) {
+    // Clear existing map if any
+    if (currentMap) {
+        currentMap.remove();
+        currentMap = null;
+    }
+    
+    // Initialize map
+    currentMap = L.map('locationMap').setView([lat, lng], 15);
+    
+    // Add tile layer (using OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(currentMap);
+    
+    // Add draggable marker
+    currentMarker = L.marker([lat, lng], {
+        draggable: true
+    }).addTo(currentMap);
+    
+    // Update coordinates when marker is dragged
+    currentMarker.on('dragend', function(e) {
+        const position = e.target.getLatLng();
+        document.getElementById('modalLat').value = position.lat.toFixed(6);
+        document.getElementById('modalLng').value = position.lng.toFixed(6);
+    });
+    
+    // Allow clicking on map to move marker
+    currentMap.on('click', function(e) {
+        const { lat, lng } = e.latlng;
+        currentMarker.setLatLng([lat, lng]);
+        document.getElementById('modalLat').value = lat.toFixed(6);
+        document.getElementById('modalLng').value = lng.toFixed(6);
+    });
+}
+
+/**
+ * Save the manually adjusted location
+ */
+function saveLocationChanges() {
+    if (currentAddressIndex === null) return;
+    
+    const newLat = parseFloat(document.getElementById('modalLat').value);
+    const newLng = parseFloat(document.getElementById('modalLng').value);
+    
+    // Store the manual coordinates
+    if (!window.manualCoordinates) {
+        window.manualCoordinates = {};
+    }
+    window.manualCoordinates[currentAddressIndex] = {
+        lat: newLat,
+        lng: newLng,
+        manually_adjusted: true
+    };
+    
+    // Update the coordinates display in the form
+    const coordsDisplay = document.getElementById(`coords-display-${currentAddressIndex}`);
+    if (coordsDisplay) {
+        coordsDisplay.innerHTML = `${newLat.toFixed(6)}, ${newLng.toFixed(6)}<br><small class="text-success"><i class="fas fa-check"></i> Manually adjusted</small>`;
+    }
+    
+    // Update the invalid address data
+    if (window.invalidAddresses && window.invalidAddresses[currentAddressIndex]) {
+        window.invalidAddresses[currentAddressIndex].lat = newLat;
+        window.invalidAddresses[currentAddressIndex].lng = newLng;
+        window.invalidAddresses[currentAddressIndex].manually_adjusted = true;
+    }
+    
+    // Close modal
+    const mapModal = bootstrap.Modal.getInstance(document.getElementById('mapModal'));
+    mapModal.hide();
+    
+    // Show success message
+    showAlert(`Location updated for address at index ${currentAddressIndex + 1}`, 'success');
+    
+    // Reset current values
+    currentAddressIndex = null;
 }
 
 /**
@@ -1186,15 +1350,35 @@ async function submitCorrectedAddresses() {
         
         const correctedAddresses = [];
         const invalidAddresses = window.invalidAddresses || [];
+        const manualCoordinates = window.manualCoordinates || {};
         
-        // Collect corrected addresses (only those that were actually modified)
+        // Collect corrected addresses and manual coordinates
         invalidAddresses.forEach((address, index) => {
             const correctedInput = document.getElementById(`corrected-${index}`);
-            if (correctedInput && correctedInput.value.trim() !== address.address) {
-                correctedAddresses.push({
-                    corrected_address: correctedInput.value.trim(),
+            const hasManualCoords = manualCoordinates[index];
+            const hasAddressChange = correctedInput && correctedInput.value.trim() !== address.address;
+            
+            // Include if there are manual coordinates OR address changes
+            if (hasManualCoords || hasAddressChange) {
+                const correctionData = {
                     original_data: address
-                });
+                };
+                
+                // If there are manual coordinates, use them
+                if (hasManualCoords) {
+                    correctionData.manual_coordinates = {
+                        lat: hasManualCoords.lat,
+                        lng: hasManualCoords.lng,
+                        manually_adjusted: true
+                    };
+                }
+                
+                // If there's an address change, include it
+                if (hasAddressChange) {
+                    correctionData.corrected_address = correctedInput.value.trim();
+                }
+                
+                correctedAddresses.push(correctionData);
             }
         });
         
