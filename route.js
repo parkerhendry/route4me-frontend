@@ -1139,47 +1139,6 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                 </div>
             </div>
         </div>
-        
-        <!-- Map Modal -->
-        <div class="modal fade" id="mapModal" tabindex="-1" aria-labelledby="mapModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="mapModalLabel">
-                            <i class="fas fa-map-marker-alt me-2"></i>Adjust Location!!!
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <strong>Address:</strong> <span id="mapModalAddress"></span>
-                        </div>
-                        <div class="mb-3">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <label class="form-label">Latitude:</label>
-                                    <input type="number" class="form-control" id="modalLat" step="0.000001" readonly>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Longitude:</label>
-                                    <input type="number" class="form-control" id="modalLng" step="0.000001" readonly>
-                                </div>
-                            </div>
-                            <small class="form-text text-muted">Drag the marker on the map to adjust the location</small>
-                        </div>
-                        <div id="locationMap" style="height: 400px; width: 100%;"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="fas fa-times me-2"></i>Cancel
-                        </button>
-                        <button type="button" class="btn btn-primary" onclick="saveLocationChanges()">
-                            <i class="fas fa-check me-2"></i>Save Location
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
     `;
     
     // Replace the entire fileInfo innerHTML (this removes the success alert and proceed button)
@@ -1197,23 +1156,90 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
 function showLocationMap(addressIndex, lat, lng, address) {
     currentAddressIndex = addressIndex;
     
-    // Set modal content
-    document.getElementById('mapModalAddress').textContent = address;
-    document.getElementById('modalLat').value = lat;
-    document.getElementById('modalLng').value = lng;
+    // Hide ALL cards and step indicator (same pattern as edit driver)
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    hideCard('jobTypesCard');
     
-    // Show the modal
-    const mapModal = new bootstrap.Modal(document.getElementById('mapModal'));
-    mapModal.show();
+    // Hide step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'none';
+    }
     
-    // Initialize map after modal is shown
-    document.getElementById('mapModal').addEventListener('shown.bs.modal', function() {
-        initializeLocationMap(lat, lng);
-    }, { once: true });
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'none';
+    }
+    
+    // Show the location adjustment card
+    showLocationAdjustmentCard(addressIndex, lat, lng, address);
 }
 
 /**
- * Initialize the Leaflet map
+ * Show location adjustment card (replaces modal)
+ */
+function showLocationAdjustmentCard(addressIndex, lat, lng, address) {
+    // Create or show the location adjustment card
+    let locationCard = document.getElementById('locationAdjustmentCard');
+    
+    if (!locationCard) {
+        // Create the card if it doesn't exist
+        locationCard = document.createElement('div');
+        locationCard.id = 'locationAdjustmentCard';
+        locationCard.className = 'card';
+        document.querySelector('.container.main-container').appendChild(locationCard);
+    }
+    
+    locationCard.innerHTML = `
+        <div class="card-header">
+            <h5>
+                <i class="fas fa-map-marker-alt me-2"></i>Adjust Location
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <strong>Address:</strong> <span id="adjustmentAddress">${address}</span>
+            </div>
+            <div class="mb-3">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">Latitude:</label>
+                        <input type="number" class="form-control" id="adjustmentLat" step="0.000001" value="${lat}" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Longitude:</label>
+                        <input type="number" class="form-control" id="adjustmentLng" step="0.000001" value="${lng}" readonly>
+                    </div>
+                </div>
+                <small class="form-text text-muted">Drag the marker on the map to adjust the location</small>
+            </div>
+            <div id="adjustmentMap" style="height: 400px; width: 100%; border: 1px solid #dee2e6; border-radius: 0.375rem;"></div>
+            
+            <div class="text-center mt-3">
+                <button type="button" class="btn btn-secondary me-2" onclick="cancelLocationAdjustment()">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveLocationChanges()">
+                    <i class="fas fa-check me-2"></i>Save Location
+                </button>
+            </div>
+        </div>
+    `;
+    
+    locationCard.classList.remove('hidden');
+    
+    // Initialize map after card is shown
+    setTimeout(() => {
+        initializeLocationMap(lat, lng);
+    }, 100);
+}
+
+/**
+ * Initialize the Leaflet map (modified to use new container)
  */
 function initializeLocationMap(lat, lng) {
     // Clear existing map if any
@@ -1222,8 +1248,8 @@ function initializeLocationMap(lat, lng) {
         currentMap = null;
     }
     
-    // Initialize map
-    currentMap = L.map('locationMap').setView([lat, lng], 15);
+    // Initialize map with new container ID
+    currentMap = L.map('adjustmentMap').setView([lat, lng], 15);
     
     // Add tile layer (using OpenStreetMap)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1238,27 +1264,27 @@ function initializeLocationMap(lat, lng) {
     // Update coordinates when marker is dragged
     currentMarker.on('dragend', function(e) {
         const position = e.target.getLatLng();
-        document.getElementById('modalLat').value = position.lat.toFixed(6);
-        document.getElementById('modalLng').value = position.lng.toFixed(6);
+        document.getElementById('adjustmentLat').value = position.lat.toFixed(6);
+        document.getElementById('adjustmentLng').value = position.lng.toFixed(6);
     });
     
     // Allow clicking on map to move marker
     currentMap.on('click', function(e) {
         const { lat, lng } = e.latlng;
         currentMarker.setLatLng([lat, lng]);
-        document.getElementById('modalLat').value = lat.toFixed(6);
-        document.getElementById('modalLng').value = lng.toFixed(6);
+        document.getElementById('adjustmentLat').value = lat.toFixed(6);
+        document.getElementById('adjustmentLng').value = lng.toFixed(6);
     });
 }
 
 /**
- * Save the manually adjusted location
+ * Save the manually adjusted location (modified to work with card instead of modal)
  */
 function saveLocationChanges() {
     if (currentAddressIndex === null) return;
     
-    const newLat = parseFloat(document.getElementById('modalLat').value);
-    const newLng = parseFloat(document.getElementById('modalLng').value);
+    const newLat = parseFloat(document.getElementById('adjustmentLat').value);
+    const newLng = parseFloat(document.getElementById('adjustmentLng').value);
     
     // Store the manual coordinates
     if (!window.manualCoordinates) {
@@ -1283,14 +1309,47 @@ function saveLocationChanges() {
         window.invalidAddresses[currentAddressIndex].manually_adjusted = true;
     }
     
-    // Close modal
-    const mapModal = bootstrap.Modal.getInstance(document.getElementById('mapModal'));
-    mapModal.hide();
+    // Hide location adjustment card and return to address upload
+    cancelLocationAdjustment();
     
     // Show success message
     showAlert(`Location updated for address at index ${currentAddressIndex + 1}`, 'success');
     
     // Reset current values
+    currentAddressIndex = null;
+}
+
+/**
+ * Cancel location adjustment and return to address upload (new function)
+ */
+function cancelLocationAdjustment() {
+    // Clean up map
+    if (currentMap) {
+        currentMap.remove();
+        currentMap = null;
+    }
+    
+    // Hide location adjustment card
+    const locationCard = document.getElementById('locationAdjustmentCard');
+    if (locationCard) {
+        locationCard.classList.add('hidden');
+    }
+    
+    // Show step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'flex';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
+    }
+    
+    // Show the address upload card
+    showCard('addressUploadCard');
+    
+    // Reset current address index
     currentAddressIndex = null;
 }
 
