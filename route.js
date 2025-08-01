@@ -1146,7 +1146,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="mapModalLabel">
-                            <i class="fas fa-map-marker-alt me-2"></i>Adjust Location
+                            <i class="fas fa-map-marker-alt me-2"></i>Adjust Location!!!
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
@@ -3160,6 +3160,9 @@ window.showEditDriverResults = showEditDriverResults;
 window.showEditDriverError = showEditDriverError;
 window.cancelEditDriver = cancelEditDriver;
 window.setSelectedJobTypes = setSelectedJobTypes;
+window.saveLocationChanges = saveLocationChanges;
+window.initializeLocationMap = initializeLocationMap;
+window.showLocationMap = showLocationMap;
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 
