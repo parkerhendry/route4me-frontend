@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit!!!
+                            <i class="fas fa-edit me-1"></i>Edit
                         </button>
                     </div>
                 </div>
@@ -1038,7 +1038,7 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
 }
 
 /**
- * Show address validation form for invalid addresses
+ * Show address validation form for invalid addresses (MODIFIED)
  */
 function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     const fileInfo = document.getElementById('fileInfo');
@@ -1058,8 +1058,49 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     
     fileInfo.classList.remove('hidden');
     
-    const validCount = validAddresses.length;
-    const invalidCount = invalidAddresses.length;
+    // Filter out manually adjusted addresses from invalidAddresses
+    const manualCoordinates = window.manualCoordinates || {};
+    const filteredInvalidAddresses = invalidAddresses.filter((address, index) => {
+        // Check if this address has been manually adjusted
+        const hasManualCoords = manualCoordinates[index] && manualCoordinates[index].manually_adjusted;
+        return !hasManualCoords;
+    });
+    
+    // Add manually adjusted addresses to valid addresses
+    const manuallyAdjustedAddresses = invalidAddresses.filter((address, index) => {
+        const hasManualCoords = manualCoordinates[index] && manualCoordinates[index].manually_adjusted;
+        if (hasManualCoords) {
+            // Update the address with manual coordinates
+            return {
+                ...address,
+                lat: manualCoordinates[index].lat,
+                lng: manualCoordinates[index].lng,
+                confidence: 'manually_adjusted',
+                manually_adjusted: true
+            };
+        }
+        return false;
+    }).filter(Boolean);
+    
+    const allValidAddresses = [...validAddresses, ...manuallyAdjustedAddresses];
+    
+    const validCount = allValidAddresses.length;
+    const invalidCount = filteredInvalidAddresses.length;
+    
+    // If no invalid addresses remain, proceed directly
+    if (filteredInvalidAddresses.length === 0) {
+        uploadedAddresses = allValidAddresses;
+        showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
+        showCleanFileInfo(fileName, uploadedAddresses.length);
+        
+        // Clear stored data
+        window.validAddresses = null;
+        window.invalidAddresses = null;
+        window.manualCoordinates = {};
+        
+        validateDriverAssignments();
+        return;
+    }
     
     // Replace the entire fileInfo content with ONLY the validation form (no success alert)
     let formHtml = `
@@ -1081,7 +1122,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                 <div class="invalid-addresses-list">
     `;
     
-    invalidAddresses.forEach((address, index) => {
+    filteredInvalidAddresses.forEach((address, index) => {
         formHtml += `
             <div class="invalid-address-item card mb-3">
                 <div class="card-body">
@@ -1144,10 +1185,10 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     // Replace the entire fileInfo innerHTML (this removes the success alert and proceed button)
     fileInfo.innerHTML = formHtml;
     
-    // Store data for later use
-    window.validAddresses = validAddresses;
-    window.invalidAddresses = invalidAddresses;
-    window.manualCoordinates = {}; // Track manually adjusted coordinates
+    // Store data for later use (update with filtered data)
+    window.validAddresses = allValidAddresses;
+    window.invalidAddresses = filteredInvalidAddresses;
+    // Keep existing manualCoordinates
 }
 
 
@@ -1393,11 +1434,10 @@ function cancelAddressCorrection() {
 }
 
 /**
- * Submit corrected addresses for re-validation
+ * Submit corrected addresses for re-validation (MODIFIED)
  */
 async function submitCorrectedAddresses() {
     try {
-
         let username;
 
         if (isGeotabEnvironment) {
@@ -1487,6 +1527,9 @@ async function submitCorrectedAddresses() {
     }
 }
 
+/**
+ * Poll retry geocoding status (MODIFIED)
+ */
 async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
     const startTime = Date.now();
     const maxWaitTime = maxWaitMinutes * 60 * 1000; // Convert to milliseconds
@@ -1514,15 +1557,27 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                 
                 if (jobInfo.result && jobInfo.result.success) {
                     const results = jobInfo.result.results;
-                    const stillInvalid = results.filter(r => r.status === 'success' && r.confidence !== 'high');
-                    const nowValid = results.filter(r => r.status === 'success' && r.confidence === 'high');
+                    const stillInvalid = results.filter(r => 
+                        r.status === 'success' && 
+                        r.confidence !== 'high' && 
+                        r.confidence !== 'manually_adjusted'
+                    );
+                    const nowValid = results.filter(r => 
+                        r.status === 'success' && 
+                        (r.confidence === 'high' || r.confidence === 'manually_adjusted')
+                    );
                     const failed = results.filter(r => r.status !== 'success');
                     
-                    // Keep unchanged addresses from original invalid list
+                    // Keep unchanged addresses from original invalid list (excluding manually adjusted ones)
                     const invalidAddresses = window.invalidAddresses || [];
+                    const manualCoordinates = window.manualCoordinates || {};
                     const unchangedAddresses = invalidAddresses.filter((address, index) => {
                         const correctedInput = document.getElementById(`corrected-${index}`);
-                        return !correctedInput || correctedInput.value.trim() === address.address;
+                        const hasManualCoords = manualCoordinates[index];
+                        const hasAddressChange = correctedInput && correctedInput.value.trim() !== address.address;
+                        
+                        // Keep if no changes were made AND not manually adjusted
+                        return !hasAddressChange && !hasManualCoords;
                     });
                     
                     if (stillInvalid.length > 0 || failed.length > 0 || unchangedAddresses.length > 0) {
@@ -1541,6 +1596,7 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                         // Clear stored data
                         window.validAddresses = null;
                         window.invalidAddresses = null;
+                        window.manualCoordinates = {};
                         
                         await validateDriverAssignments();
                     }
@@ -1570,20 +1626,50 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
 }
 
 /**
- * Proceed with current addresses without corrections
+ * Proceed with current addresses without corrections (MODIFIED)
  */
 function proceedWithCurrentAddresses() {
     try {
         // Combine valid addresses with invalid ones (as-is)
         const validAddresses = window.validAddresses || [];
         const invalidAddresses = window.invalidAddresses || [];
+        const manualCoordinates = window.manualCoordinates || {};
         
-        uploadedAddresses = [...validAddresses, ...invalidAddresses];
+        // Apply manual coordinates to invalid addresses before combining
+        const updatedInvalidAddresses = invalidAddresses.map((address, index) => {
+            if (manualCoordinates[index]) {
+                return {
+                    ...address,
+                    lat: manualCoordinates[index].lat,
+                    lng: manualCoordinates[index].lng,
+                    confidence: 'manually_adjusted',
+                    manually_adjusted: true
+                };
+            }
+            return address;
+        });
+        
+        uploadedAddresses = [...validAddresses, ...updatedInvalidAddresses];
         
         const totalCount = uploadedAddresses.length;
-        const invalidCount = invalidAddresses.length;
+        const manuallyAdjustedCount = Object.keys(manualCoordinates).length;
+        const lowConfidenceCount = updatedInvalidAddresses.filter(addr => 
+            !addr.manually_adjusted && addr.confidence !== 'high'
+        ).length;
         
-        showAlert(`Proceeding with ${totalCount} addresses (${invalidCount} with low confidence)`, 'warning');
+        let message = `Proceeding with ${totalCount} addresses`;
+        if (manuallyAdjustedCount > 0) {
+            message += ` (${manuallyAdjustedCount} manually adjusted`;
+            if (lowConfidenceCount > 0) {
+                message += `, ${lowConfidenceCount} with low confidence)`;
+            } else {
+                message += ')';
+            }
+        } else if (lowConfidenceCount > 0) {
+            message += ` (${lowConfidenceCount} with low confidence)`;
+        }
+        
+        showAlert(message, 'warning');
         
         // Show clean file info without upload interface
         showCleanFileInfo('Current File', totalCount);
@@ -1591,6 +1677,7 @@ function proceedWithCurrentAddresses() {
         // Clear stored data
         window.validAddresses = null;
         window.invalidAddresses = null;
+        window.manualCoordinates = {};
         
         // Validate driver assignments
         validateDriverAssignments();
@@ -1600,7 +1687,6 @@ function proceedWithCurrentAddresses() {
         showAlert('Error proceeding with addresses. Please try again.', 'danger');
     }
 }
-
 /**
  * Show clean file info without upload interface
  */
