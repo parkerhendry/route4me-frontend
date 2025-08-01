@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!!!
                         </button>
                     </div>
                 </div>
@@ -1150,6 +1150,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     window.manualCoordinates = {}; // Track manually adjusted coordinates
 }
 
+
 /**
  * Show location on map for manual adjustment
  */
@@ -1183,15 +1184,18 @@ function showLocationMap(addressIndex, lat, lng, address) {
  * Show location adjustment card (replaces modal)
  */
 function showLocationAdjustmentCard(addressIndex, lat, lng, address) {
-    // Create or show the location adjustment card
+    // Create or get the location adjustment card
     let locationCard = document.getElementById('locationAdjustmentCard');
     
     if (!locationCard) {
-        // Create the card if it doesn't exist
+        // Create the card if it doesn't exist and insert it after the main container
         locationCard = document.createElement('div');
         locationCard.id = 'locationAdjustmentCard';
-        locationCard.className = 'card';
-        document.querySelector('.container.main-container').appendChild(locationCard);
+        locationCard.className = 'card hidden';
+        
+        // Insert after the main container div
+        const mainContainer = document.getElementById('route4meApp');
+        mainContainer.parentNode.insertBefore(locationCard, mainContainer.nextSibling);
     }
     
     locationCard.innerHTML = `
@@ -1230,6 +1234,7 @@ function showLocationAdjustmentCard(addressIndex, lat, lng, address) {
         </div>
     `;
     
+    // Show the card (remove hidden class)
     locationCard.classList.remove('hidden');
     
     // Initialize map after card is shown
@@ -1320,7 +1325,7 @@ function saveLocationChanges() {
 }
 
 /**
- * Cancel location adjustment and return to address upload (new function)
+ * Cancel location adjustment and return to address upload (modified function)
  */
 function cancelLocationAdjustment() {
     // Clean up map
