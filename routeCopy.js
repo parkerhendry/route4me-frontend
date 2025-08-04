@@ -14,6 +14,9 @@ let selectedDrivers = [];
 let uploadedAddresses = [];
 let currentStep = 1;
 let currentJobTypes = [];
+let currentMap = null;
+let currentMarker = null;
+let currentAddressIndex = null;
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -1035,7 +1038,7 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
 }
 
 /**
- * Show address validation form for invalid addresses
+ * Show address validation form for invalid addresses (MODIFIED)
  */
 function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     const fileInfo = document.getElementById('fileInfo');
@@ -1055,8 +1058,54 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     
     fileInfo.classList.remove('hidden');
     
-    const validCount = validAddresses.length;
-    const invalidCount = invalidAddresses.length;
+    // Filter out manually adjusted addresses and create mapping
+    const manualCoordinates = window.manualCoordinates || {};
+    const filteredInvalidAddresses = [];
+    const manuallyAdjustedAddresses = [];
+    
+    invalidAddresses.forEach((address, originalIndex) => {
+        // Use the stored originalIndex if it exists, otherwise use the current index
+        const actualOriginalIndex = address.originalIndex !== undefined ? address.originalIndex : originalIndex;
+        const hasManualCoords = manualCoordinates[actualOriginalIndex] && manualCoordinates[actualOriginalIndex].manually_adjusted;
+        
+        if (hasManualCoords) {
+            // Add to manually adjusted (move to valid)
+            manuallyAdjustedAddresses.push({
+                ...address,
+                lat: manualCoordinates[actualOriginalIndex].lat,
+                lng: manualCoordinates[actualOriginalIndex].lng,
+                confidence: 'manually_adjusted',
+                manually_adjusted: true,
+                originalIndex: actualOriginalIndex
+            });
+        } else {
+            // Keep in invalid list and preserve original index
+            filteredInvalidAddresses.push({
+                ...address,
+                originalIndex: actualOriginalIndex
+            });
+        }
+    });
+    
+    const allValidAddresses = [...validAddresses, ...manuallyAdjustedAddresses];
+    
+    const validCount = allValidAddresses.length;
+    const invalidCount = filteredInvalidAddresses.length;
+    
+    // If no invalid addresses remain, proceed directly
+    if (filteredInvalidAddresses.length === 0) {
+        uploadedAddresses = allValidAddresses;
+        showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
+        showCleanFileInfo(fileName, uploadedAddresses.length);
+        
+        // Clear stored data
+        window.validAddresses = null;
+        window.invalidAddresses = null;
+        window.manualCoordinates = {};
+        
+        validateDriverAssignments();
+        return;
+    }
     
     // Replace the entire fileInfo content with ONLY the validation form (no success alert)
     let formHtml = `
@@ -1078,24 +1127,42 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                 <div class="invalid-addresses-list">
     `;
     
-    invalidAddresses.forEach((address, index) => {
+    filteredInvalidAddresses.forEach((address, filteredIndex) => {
+        const originalIndex = address.originalIndex;
         formHtml += `
             <div class="invalid-address-item card mb-3">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-5">
                             <h6 class="card-title">${address.builder_name} - ${address.problem_type}</h6>
                             <p class="text-muted mb-2">
                                 <strong>Address:</strong> ${address.address}<br>
                                 <strong>Confidence:</strong> ${address.confidence || 'Low confidence'}
+                                ${address.lat && address.lng ? `<br><strong>Coordinates:</strong> ${address.lat.toFixed(6)}, ${address.lng.toFixed(6)}` : ''}
                             </p>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label">Corrected Address (Optional):</label>
                             <input type="text" class="form-control corrected-address" 
-                                id="corrected-${index}" 
+                                id="corrected-${filteredIndex}" 
+                                data-original-index="${originalIndex}"
                                 value="${address.address}"
                                 placeholder="Enter corrected address (optional)">
+                        </div>
+                        <div class="col-md-3 text-center">
+                            ${address.lat && address.lng ? `
+                                <button class="btn btn-info btn-sm mb-2" onclick="showLocationMap(${originalIndex}, ${address.lat}, ${address.lng}, '${address.address.replace(/'/g, "\\'")}')">
+                                    <i class="fas fa-map-marker-alt me-1"></i>View on Map
+                                </button>
+                                <div class="small text-muted" id="coords-display-${originalIndex}">
+                                    ${address.lat.toFixed(6)}, ${address.lng.toFixed(6)}
+                                </div>
+                            ` : `
+                                <div class="text-muted small">
+                                    <i class="fas fa-exclamation-triangle"></i><br>
+                                    No coordinates available
+                                </div>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -1125,9 +1192,219 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     // Replace the entire fileInfo innerHTML (this removes the success alert and proceed button)
     fileInfo.innerHTML = formHtml;
     
-    // Store data for later use
-    window.validAddresses = validAddresses;
-    window.invalidAddresses = invalidAddresses;
+    // Store data for later use (update with filtered data but preserve original indices)
+    window.validAddresses = allValidAddresses;
+    window.invalidAddresses = filteredInvalidAddresses;
+    // Don't need originalToFilteredIndexMap anymore since we're preserving originalIndex directly
+    // Keep existing manualCoordinates
+}
+
+
+/**
+ * Show location on map for manual adjustment
+ */
+function showLocationMap(addressIndex, lat, lng, address) {
+    currentAddressIndex = addressIndex;
+    
+    // Hide ALL cards and step indicator (same pattern as edit driver)
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    hideCard('jobTypesCard');
+    
+    // Hide step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'none';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'none';
+    }
+    
+    // Show the location adjustment card
+    showLocationAdjustmentCard(addressIndex, lat, lng, address);
+}
+
+/**
+ * Show location adjustment card (replaces modal)
+ */
+function showLocationAdjustmentCard(addressIndex, lat, lng, address) {
+    // Create or get the location adjustment card
+    let locationCard = document.getElementById('locationAdjustmentCard');
+    
+    if (!locationCard) {
+        // Create the card if it doesn't exist and insert it after the main container
+        locationCard = document.createElement('div');
+        locationCard.id = 'locationAdjustmentCard';
+        locationCard.className = 'card hidden';
+        
+        // Insert after the main container div
+        const mainContainer = document.getElementById('route4meApp');
+        mainContainer.parentNode.insertBefore(locationCard, mainContainer.nextSibling);
+    }
+    
+    locationCard.innerHTML = `
+        <div class="card-header">
+            <h5>
+                <i class="fas fa-map-marker-alt me-2"></i>Adjust Location
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <strong>Address:</strong> <span id="adjustmentAddress">${address}</span>
+            </div>
+            <div class="mb-3">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">Latitude:</label>
+                        <input type="number" class="form-control" id="adjustmentLat" step="0.000001" value="${lat}" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Longitude:</label>
+                        <input type="number" class="form-control" id="adjustmentLng" step="0.000001" value="${lng}" readonly>
+                    </div>
+                </div>
+                <small class="form-text text-muted">Drag the marker on the map to adjust the location</small>
+            </div>
+            <div id="adjustmentMap" style="height: 400px; width: 100%; border: 1px solid #dee2e6; border-radius: 0.375rem;"></div>
+            
+            <div class="text-center mt-3">
+                <button type="button" class="btn btn-secondary me-2" onclick="cancelLocationAdjustment()">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveLocationChanges()">
+                    <i class="fas fa-check me-2"></i>Save Location
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Show the card (remove hidden class)
+    locationCard.classList.remove('hidden');
+    
+    // Initialize map after card is shown
+    setTimeout(() => {
+        initializeLocationMap(lat, lng);
+    }, 100);
+}
+
+/**
+ * Initialize the Leaflet map (modified to use new container)
+ */
+function initializeLocationMap(lat, lng) {
+    // Clear existing map if any
+    if (currentMap) {
+        currentMap.remove();
+        currentMap = null;
+    }
+    
+    // Initialize map with new container ID
+    currentMap = L.map('adjustmentMap').setView([lat, lng], 15);
+    
+    // Add tile layer (using OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(currentMap);
+    
+    // Add draggable marker
+    currentMarker = L.marker([lat, lng], {
+        draggable: true
+    }).addTo(currentMap);
+    
+    // Update coordinates when marker is dragged
+    currentMarker.on('dragend', function(e) {
+        const position = e.target.getLatLng();
+        document.getElementById('adjustmentLat').value = position.lat.toFixed(6);
+        document.getElementById('adjustmentLng').value = position.lng.toFixed(6);
+    });
+    
+    // Allow clicking on map to move marker
+    currentMap.on('click', function(e) {
+        const { lat, lng } = e.latlng;
+        currentMarker.setLatLng([lat, lng]);
+        document.getElementById('adjustmentLat').value = lat.toFixed(6);
+        document.getElementById('adjustmentLng').value = lng.toFixed(6);
+    });
+}
+
+/**
+ * Save the manually adjusted location (modified to work with card instead of modal)
+ */
+function saveLocationChanges() {
+    if (currentAddressIndex === null) return;
+    
+    const newLat = parseFloat(document.getElementById('adjustmentLat').value);
+    const newLng = parseFloat(document.getElementById('adjustmentLng').value);
+    
+    // Store the manual coordinates
+    if (!window.manualCoordinates) {
+        window.manualCoordinates = {};
+    }
+    window.manualCoordinates[currentAddressIndex] = {
+        lat: newLat,
+        lng: newLng,
+        manually_adjusted: true
+    };
+    
+    // Update the coordinates display in the form
+    const coordsDisplay = document.getElementById(`coords-display-${currentAddressIndex}`);
+    if (coordsDisplay) {
+        coordsDisplay.innerHTML = `${newLat.toFixed(6)}, ${newLng.toFixed(6)}<br><small class="text-success"><i class="fas fa-check"></i> Manually adjusted</small>`;
+    }
+    
+    // Update the invalid address data
+    if (window.invalidAddresses && window.invalidAddresses[currentAddressIndex]) {
+        window.invalidAddresses[currentAddressIndex].lat = newLat;
+        window.invalidAddresses[currentAddressIndex].lng = newLng;
+        window.invalidAddresses[currentAddressIndex].manually_adjusted = true;
+    }
+    
+    // Hide location adjustment card and return to address upload
+    cancelLocationAdjustment();
+    
+    // Show success message
+    showAlert(`Location updated for address at index ${currentAddressIndex + 1}`, 'success');
+    
+    // Reset current values
+    currentAddressIndex = null;
+}
+
+/**
+ * Cancel location adjustment and return to address upload (modified function)
+ */
+function cancelLocationAdjustment() {
+    // Clean up map
+    if (currentMap) {
+        currentMap.remove();
+        currentMap = null;
+    }
+    
+    // Hide location adjustment card
+    const locationCard = document.getElementById('locationAdjustmentCard');
+    if (locationCard) {
+        locationCard.classList.add('hidden');
+    }
+    
+    // Show step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'flex';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
+    }
+    
+    // Show the address upload card
+    showCard('addressUploadCard');
+    
+    // Reset current address index
+    currentAddressIndex = null;
 }
 
 /**
@@ -1165,11 +1442,10 @@ function cancelAddressCorrection() {
 }
 
 /**
- * Submit corrected addresses for re-validation
+ * Submit corrected addresses for re-validation (MODIFIED)
  */
 async function submitCorrectedAddresses() {
     try {
-
         let username;
 
         if (isGeotabEnvironment) {
@@ -1186,15 +1462,39 @@ async function submitCorrectedAddresses() {
         
         const correctedAddresses = [];
         const invalidAddresses = window.invalidAddresses || [];
+        const manualCoordinates = window.manualCoordinates || {};
         
-        // Collect corrected addresses (only those that were actually modified)
-        invalidAddresses.forEach((address, index) => {
-            const correctedInput = document.getElementById(`corrected-${index}`);
-            if (correctedInput && correctedInput.value.trim() !== address.address) {
-                correctedAddresses.push({
-                    corrected_address: correctedInput.value.trim(),
-                    original_data: address
-                });
+        // Collect corrected addresses and manual coordinates
+        invalidAddresses.forEach((address, filteredIndex) => {
+            const originalIndex = address.originalIndex;
+            const correctedInput = document.getElementById(`corrected-${filteredIndex}`);
+            const hasManualCoords = manualCoordinates[originalIndex];
+            const hasAddressChange = correctedInput && correctedInput.value.trim() !== address.address;
+            
+            // Include if there are manual coordinates OR address changes
+            if (hasManualCoords || hasAddressChange) {
+                const correctionData = {
+                    original_data: {
+                        ...address,
+                        originalIndex: originalIndex // Include original index for backend reference
+                    }
+                };
+                
+                // If there are manual coordinates, use them
+                if (hasManualCoords) {
+                    correctionData.manual_coordinates = {
+                        lat: hasManualCoords.lat,
+                        lng: hasManualCoords.lng,
+                        manually_adjusted: true
+                    };
+                }
+                
+                // If there's an address change, include it
+                if (hasAddressChange) {
+                    correctionData.corrected_address = correctedInput.value.trim();
+                }
+                
+                correctedAddresses.push(correctionData);
             }
         });
         
@@ -1239,6 +1539,9 @@ async function submitCorrectedAddresses() {
     }
 }
 
+/**
+ * Poll retry geocoding status (MODIFIED)
+ */
 async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
     const startTime = Date.now();
     const maxWaitTime = maxWaitMinutes * 60 * 1000; // Convert to milliseconds
@@ -1266,15 +1569,32 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                 
                 if (jobInfo.result && jobInfo.result.success) {
                     const results = jobInfo.result.results;
-                    const stillInvalid = results.filter(r => r.status === 'success' && r.confidence !== 'high');
-                    const nowValid = results.filter(r => r.status === 'success' && r.confidence === 'high');
+                    const stillInvalid = results.filter(r => 
+                        r.status === 'success' && 
+                        r.confidence !== 'high' && 
+                        r.confidence !== 'manually_adjusted'
+                    );
+                    const nowValid = results.filter(r => 
+                        r.status === 'success' && 
+                        (r.confidence === 'high' || r.confidence === 'manually_adjusted')
+                    );
                     const failed = results.filter(r => r.status !== 'success');
                     
-                    // Keep unchanged addresses from original invalid list
+                    // FIXED: Keep unchanged addresses from original invalid list (excluding corrected ones)
                     const invalidAddresses = window.invalidAddresses || [];
-                    const unchangedAddresses = invalidAddresses.filter((address, index) => {
-                        const correctedInput = document.getElementById(`corrected-${index}`);
-                        return !correctedInput || correctedInput.value.trim() === address.address;
+                    const manualCoordinates = window.manualCoordinates || {};
+                    
+                    // Create a set of original indices that were corrected
+                    const correctedOriginalIndices = new Set();
+                    results.forEach(result => {
+                        if (result.originalIndex !== undefined) {
+                            correctedOriginalIndices.add(result.originalIndex);
+                        }
+                    });
+                    
+                    const unchangedAddresses = invalidAddresses.filter((address) => {
+                        const originalIndex = address.originalIndex;
+                        return !correctedOriginalIndices.has(originalIndex) && !manualCoordinates[originalIndex];
                     });
                     
                     if (stillInvalid.length > 0 || failed.length > 0 || unchangedAddresses.length > 0) {
@@ -1293,6 +1613,7 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                         // Clear stored data
                         window.validAddresses = null;
                         window.invalidAddresses = null;
+                        window.manualCoordinates = {};
                         
                         await validateDriverAssignments();
                     }
@@ -1322,20 +1643,102 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
 }
 
 /**
- * Proceed with current addresses without corrections
+ * Save the manually adjusted location (MODIFIED to work with original indices)
+ */
+function saveLocationChanges() {
+    if (currentAddressIndex === null) return;
+    
+    const newLat = parseFloat(document.getElementById('adjustmentLat').value);
+    const newLng = parseFloat(document.getElementById('adjustmentLng').value);
+    
+    // Store the manual coordinates using original index
+    if (!window.manualCoordinates) {
+        window.manualCoordinates = {};
+    }
+    window.manualCoordinates[currentAddressIndex] = {
+        lat: newLat,
+        lng: newLng,
+        manually_adjusted: true
+    };
+    
+    // Update the coordinates display in the form (if it exists)
+    const coordsDisplay = document.getElementById(`coords-display-${currentAddressIndex}`);
+    if (coordsDisplay) {
+        coordsDisplay.innerHTML = `${newLat.toFixed(6)}, ${newLng.toFixed(6)}<br><small class="text-success"><i class="fas fa-check"></i> Manually adjusted</small>`;
+    }
+    
+    // Update the invalid address data if it exists in the current filtered list
+    if (window.invalidAddresses) {
+        const addressInFilteredList = window.invalidAddresses.find(addr => addr.originalIndex === currentAddressIndex);
+        if (addressInFilteredList) {
+            addressInFilteredList.lat = newLat;
+            addressInFilteredList.lng = newLng;
+            addressInFilteredList.manually_adjusted = true;
+        }
+    }
+    
+    // Hide location adjustment card and return to address upload
+    cancelLocationAdjustment();
+    
+    // Show success message
+    showAlert(`Location updated for address. It will be moved to valid addresses.`, 'success');
+    
+    // Refresh the validation form to remove this address from invalid list
+    // Use the original arrays, not the current window arrays which may be corrupted
+    if (window.validAddresses && window.invalidAddresses) {
+        showAddressValidationForm(window.validAddresses, window.invalidAddresses, 'Updated File');
+    }
+    
+    // Reset current values
+    currentAddressIndex = null;
+}
+
+/**
+ * Proceed with current addresses without corrections (MODIFIED)
  */
 function proceedWithCurrentAddresses() {
     try {
         // Combine valid addresses with invalid ones (as-is)
         const validAddresses = window.validAddresses || [];
         const invalidAddresses = window.invalidAddresses || [];
+        const manualCoordinates = window.manualCoordinates || {};
         
-        uploadedAddresses = [...validAddresses, ...invalidAddresses];
+        // Apply manual coordinates to invalid addresses before combining
+        const updatedInvalidAddresses = invalidAddresses.map((address) => {
+            const originalIndex = address.originalIndex;
+            if (manualCoordinates[originalIndex]) {
+                return {
+                    ...address,
+                    lat: manualCoordinates[originalIndex].lat,
+                    lng: manualCoordinates[originalIndex].lng,
+                    confidence: 'manually_adjusted',
+                    manually_adjusted: true
+                };
+            }
+            return address;
+        });
+        
+        uploadedAddresses = [...validAddresses, ...updatedInvalidAddresses];
         
         const totalCount = uploadedAddresses.length;
-        const invalidCount = invalidAddresses.length;
+        const manuallyAdjustedCount = Object.keys(manualCoordinates).length;
+        const lowConfidenceCount = updatedInvalidAddresses.filter(addr => 
+            !addr.manually_adjusted && addr.confidence !== 'high'
+        ).length;
         
-        showAlert(`Proceeding with ${totalCount} addresses (${invalidCount} with low confidence)`, 'warning');
+        let message = `Proceeding with ${totalCount} addresses`;
+        if (manuallyAdjustedCount > 0) {
+            message += ` (${manuallyAdjustedCount} manually adjusted`;
+            if (lowConfidenceCount > 0) {
+                message += `, ${lowConfidenceCount} with low confidence)`;
+            } else {
+                message += ')';
+            }
+        } else if (lowConfidenceCount > 0) {
+            message += ` (${lowConfidenceCount} with low confidence)`;
+        }
+        
+        showAlert(message, 'warning');
         
         // Show clean file info without upload interface
         showCleanFileInfo('Current File', totalCount);
@@ -1343,6 +1746,7 @@ function proceedWithCurrentAddresses() {
         // Clear stored data
         window.validAddresses = null;
         window.invalidAddresses = null;
+        window.manualCoordinates = {};
         
         // Validate driver assignments
         validateDriverAssignments();
@@ -2976,6 +3380,9 @@ window.showEditDriverResults = showEditDriverResults;
 window.showEditDriverError = showEditDriverError;
 window.cancelEditDriver = cancelEditDriver;
 window.setSelectedJobTypes = setSelectedJobTypes;
+window.saveLocationChanges = saveLocationChanges;
+window.initializeLocationMap = initializeLocationMap;
+window.showLocationMap = showLocationMap;
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 

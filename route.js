@@ -2221,7 +2221,7 @@ function showRouteCreationResults(data) {
         data.created_routes.forEach(route => {
             if (route.status === 'success') {
                 resultsHtml += `
-                    <div class="card mb-2">
+                    <div class="card mb-3">
                         <div class="card-body">
                             <h6 class="card-title">
                                 <i class="fas fa-route me-2"></i>${route.driver}
@@ -2229,8 +2229,44 @@ function showRouteCreationResults(data) {
                             </h6>
                             <p class="card-text">
                                 <strong>Starting Location:</strong> ${route.starting_location?.toUpperCase()}<br>
-                                <strong>Addresses:</strong> ${route.addresses_count}<br>
+                                <strong>Total Addresses:</strong> ${route.addresses_count}<br>
                             </p>
+                `;
+                
+                // Add route addresses if available
+                if (route.route_addresses && route.route_addresses.length > 0) {
+                    resultsHtml += `
+                        <div class="mt-3">
+                            <h6 class="mb-2"><i class="fas fa-list me-2"></i>Route Addresses (in order):</h6>
+                            <div class="route-addresses" style="max-height: 300px; overflow-y: auto;">
+                                <ol class="list-group list-group-numbered">
+                    `;
+                    
+                    route.route_addresses.forEach(addr => {
+                        const isStartingPoint = addr.sequence_no === 0;
+                        const listItemClass = isStartingPoint ? 'list-group-item-info' : '';
+                        const startingPointBadge = isStartingPoint ? '<span class="badge bg-info ms-2">Starting Point</span>' : '';
+                        
+                        resultsHtml += `
+                            <li class="list-group-item ${listItemClass}">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <strong>${addr.address}</strong>${startingPointBadge}
+                                        ${addr.alias ? `<br><small class="text-muted">${addr.alias}</small>` : ''}
+                                    </div>
+                                </div>
+                            </li>
+                        `;
+                    });
+                    
+                    resultsHtml += `
+                                </ol>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                resultsHtml += `
                         </div>
                     </div>
                 `;
