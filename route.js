@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit!!!
+                            <i class="fas fa-edit me-1"></i>Edit
                         </button>
                     </div>
                 </div>
@@ -1062,26 +1062,27 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     const manualCoordinates = window.manualCoordinates || {};
     const filteredInvalidAddresses = [];
     const manuallyAdjustedAddresses = [];
-    const originalToFilteredIndexMap = {};
     
     invalidAddresses.forEach((address, originalIndex) => {
-        const hasManualCoords = manualCoordinates[originalIndex] && manualCoordinates[originalIndex].manually_adjusted;
+        // Use the stored originalIndex if it exists, otherwise use the current index
+        const actualOriginalIndex = address.originalIndex !== undefined ? address.originalIndex : originalIndex;
+        const hasManualCoords = manualCoordinates[actualOriginalIndex] && manualCoordinates[actualOriginalIndex].manually_adjusted;
         
         if (hasManualCoords) {
             // Add to manually adjusted (move to valid)
             manuallyAdjustedAddresses.push({
                 ...address,
-                lat: manualCoordinates[originalIndex].lat,
-                lng: manualCoordinates[originalIndex].lng,
+                lat: manualCoordinates[actualOriginalIndex].lat,
+                lng: manualCoordinates[actualOriginalIndex].lng,
                 confidence: 'manually_adjusted',
-                manually_adjusted: true
+                manually_adjusted: true,
+                originalIndex: actualOriginalIndex
             });
         } else {
-            // Keep in invalid list and track the index mapping
-            originalToFilteredIndexMap[originalIndex] = filteredInvalidAddresses.length;
+            // Keep in invalid list and preserve original index
             filteredInvalidAddresses.push({
                 ...address,
-                originalIndex: originalIndex // Store original index for reference
+                originalIndex: actualOriginalIndex
             });
         }
     });
@@ -1191,10 +1192,10 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     // Replace the entire fileInfo innerHTML (this removes the success alert and proceed button)
     fileInfo.innerHTML = formHtml;
     
-    // Store data for later use (update with filtered data)
+    // Store data for later use (update with filtered data but preserve original indices)
     window.validAddresses = allValidAddresses;
     window.invalidAddresses = filteredInvalidAddresses;
-    window.originalToFilteredIndexMap = originalToFilteredIndexMap;
+    // Don't need originalToFilteredIndexMap anymore since we're preserving originalIndex directly
     // Keep existing manualCoordinates
 }
 
@@ -1579,17 +1580,21 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                     );
                     const failed = results.filter(r => r.status !== 'success');
                     
-                    // Keep unchanged addresses from original invalid list (excluding manually adjusted ones)
+                    // FIXED: Keep unchanged addresses from original invalid list (excluding corrected ones)
                     const invalidAddresses = window.invalidAddresses || [];
                     const manualCoordinates = window.manualCoordinates || {};
-                    const unchangedAddresses = invalidAddresses.filter((address, filteredIndex) => {
+                    
+                    // Create a set of original indices that were corrected
+                    const correctedOriginalIndices = new Set();
+                    results.forEach(result => {
+                        if (result.originalIndex !== undefined) {
+                            correctedOriginalIndices.add(result.originalIndex);
+                        }
+                    });
+                    
+                    const unchangedAddresses = invalidAddresses.filter((address) => {
                         const originalIndex = address.originalIndex;
-                        const correctedInput = document.getElementById(`corrected-${filteredIndex}`);
-                        const hasManualCoords = manualCoordinates[originalIndex];
-                        const hasAddressChange = correctedInput && correctedInput.value.trim() !== address.address;
-                        
-                        // Keep if no changes were made AND not manually adjusted
-                        return !hasAddressChange && !hasManualCoords;
+                        return !correctedOriginalIndices.has(originalIndex) && !manualCoordinates[originalIndex];
                     });
                     
                     if (stillInvalid.length > 0 || failed.length > 0 || unchangedAddresses.length > 0) {
@@ -1679,6 +1684,7 @@ function saveLocationChanges() {
     showAlert(`Location updated for address. It will be moved to valid addresses.`, 'success');
     
     // Refresh the validation form to remove this address from invalid list
+    // Use the original arrays, not the current window arrays which may be corrupted
     if (window.validAddresses && window.invalidAddresses) {
         showAddressValidationForm(window.validAddresses, window.invalidAddresses, 'Updated File');
     }
@@ -1698,7 +1704,7 @@ function proceedWithCurrentAddresses() {
         const manualCoordinates = window.manualCoordinates || {};
         
         // Apply manual coordinates to invalid addresses before combining
-        const updatedInvalidAddresses = invalidAddresses.map((address, filteredIndex) => {
+        const updatedInvalidAddresses = invalidAddresses.map((address) => {
             const originalIndex = address.originalIndex;
             if (manualCoordinates[originalIndex]) {
                 return {
