@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!!!
                         </button>
                     </div>
                 </div>
@@ -2603,22 +2603,46 @@ async function handleAddDriverSubmit() {
  * Show add driver success results
  */
 function showAddDriverResults(data) {
-    // Reset form to default state before going back
-    resetAddDriverFormToDefault();
+    const resultsDiv = document.getElementById('addDriverResults');
+    if (!resultsDiv) return;
     
-    // Go back to driver selection
-    cancelAddDriver();
+    resultsDiv.innerHTML = `
+        <div class="alert alert-success">
+            <h6><i class="fas fa-check-circle me-2"></i>Driver Added Successfully!</h6>
+            <p class="mb-2"><strong>Route4Me Member ID:</strong> ${data.route4me_member_id}</p>
+            <p class="mb-2"><strong>Email:</strong> ${data.driver_email}</p>
+            <p class="mb-0"><strong>Configuration:</strong> Driver information saved to local database</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-primary" onclick="cancelAddDriver()">
+                <i class="fas fa-arrow-left me-2"></i>Back to App
+            </button>
+        </div>
+    `;
     
-    // Re-render the driver list to reflect the new driver
-    validateUser();
+    resultsDiv.classList.remove('hidden');
 }
 
 /**
  * Show add driver error
  */
 function showAddDriverError(errorMessage) {
-    // Just show the alert, don't create results div content
-    showAlert(errorMessage, 'danger');
+    const resultsDiv = document.getElementById('addDriverResults');
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = `
+        <div class="alert alert-danger">
+            <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Adding Driver</h6>
+            <p class="mb-0">${errorMessage}</p>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-secondary" onclick="showAddDriverForm()">
+                <i class="fas fa-redo me-2"></i>Try Again
+            </button>
+        </div>
+    `;
+    
+    resultsDiv.classList.remove('hidden');
 }
 
 /**
@@ -3525,11 +3549,15 @@ async function deleteDriver(driverEmail) {
         });
         
         const data = await response.json();
+
+        console.log('There')
         
         // Clear loading state
         hideLoadingInCard('addDriverCard');
         
         if (response.ok && data.success) {
+            console.log('Here');
+            showDeleteDriverResults(data, true);
             showAlert('Driver deleted successfully!', 'success');
             
             // Remove driver from local subDrivers array
@@ -3537,12 +3565,8 @@ async function deleteDriver(driverEmail) {
             if (driverIndex !== -1) {
                 subDrivers.splice(driverIndex, 1);
             }
-            
-            // Reset form to default state and return to driver selection
-            resetAddDriverFormToDefault();
-            cancelAddDriver();
-            validateUser(); // This will refresh the driver list
         } else {
+            showDeleteDriverResults(data, false);
             showAlert(data.error || 'Failed to delete driver', 'danger');
         }
         
@@ -3552,8 +3576,69 @@ async function deleteDriver(driverEmail) {
         // Clear loading state
         hideLoadingInCard('addDriverCard');
         
+        showDeleteDriverResults({ error: 'Network error occurred while deleting driver' }, false);
         showAlert('Network error occurred while deleting driver', 'danger');
     }
+}
+
+/**
+ * Show delete driver results (NEW FUNCTION)
+ */
+function showDeleteDriverResults(data, success) {
+    console.log('More')
+    const resultsDiv = document.getElementById('deleteDriverResults');
+    if (!resultsDiv) {
+        console.log('No results div found');
+        return;
+    }
+
+    if (success) {
+        resultsDiv.innerHTML = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle me-2"></i>Driver Deleted Successfully!</h6>
+                <p class="mb-0">The driver has been removed from Route4Me and your local database.</p>
+            </div>
+            <div class="text-center">
+                <button class="btn btn-primary" onclick="returnToDriverSelectionAfterDelete()">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Driver Selection
+                </button>
+            </div>
+        `;
+    } else {
+        resultsDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Deleting Driver</h6>
+                <p class="mb-0">${data.error || 'An error occurred while deleting the driver.'}</p>
+            </div>
+            <div class="text-center">
+                <button class="btn btn-secondary me-2" onclick="cancelDeleteDriver()">
+                    <i class="fas fa-arrow-left me-2"></i>Back
+                </button>
+                <button class="btn btn-primary" onclick="location.reload()">
+                    <i class="fas fa-redo me-2"></i>Refresh Page
+                </button>
+            </div>
+        `;
+    }
+    
+    resultsDiv.classList.remove('hidden');
+}
+
+/**
+ * Return to driver selection after successful delete (NEW FUNCTION)
+ */
+function returnToDriverSelectionAfterDelete() {
+
+    console.log('Returning to driver selection after delete');
+
+    // Reset form to default state before going back
+    resetAddDriverFormToDefault();
+    
+    // Use cancelAddDriver to restore the UI properly
+    cancelAddDriver();
+    
+    // Reload the driver list to reflect the deletion
+    validateUser(); // This will refresh the driver list
 }
 
 /**
