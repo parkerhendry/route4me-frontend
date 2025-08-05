@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!!!
                         </button>
                     </div>
                 </div>
@@ -2510,13 +2510,20 @@ async function handleAddDriverSubmit() {
         password: document.getElementById('memberPassword').value,
         hq: document.getElementById('driverHq').value.trim(),
         home: document.getElementById('driverHome').value.trim(),
+        max_destinations: parseInt(document.getElementById('driverMaxDestinations').value) || 25,
         types: selectedJobTypes
     };
     
     // Validate required fields
     if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.password || !formData.hq || !formData.home) {
+        !formData.password || !formData.hq || !formData.home || !formData.max_destinations) {
         showAlert('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    // Validate max destinations is a positive number
+    if (formData.max_destinations <= 0) {
+        showAlert('Max destinations must be a positive number', 'danger');
         return;
     }
     
@@ -2559,6 +2566,7 @@ async function handleAddDriverSubmit() {
                     password: formData.password,
                     hq: formData.hq,
                     home: formData.home,
+                    max_destinations: formData.max_destinations,
                     types: formData.types // This is now an array from getSelectedJobTypes()
                 }
             })
@@ -3181,6 +3189,7 @@ async function showEditDriverForm(driverEmail) {
         if (response.ok && configData.success) {
             document.getElementById('driverHq').value = configData.config.hq || '';
             document.getElementById('driverHome').value = configData.config.home || '';
+            document.getElementById('driverMaxDestinations').value = configData.config.max_destinations || 25;
             
             // Load job types and pre-select the driver's types
             await loadJobTypesForDriverForm();
@@ -3190,7 +3199,8 @@ async function showEditDriverForm(driverEmail) {
         } else {
             // If no config found, still load job types but don't pre-select any
             await loadJobTypesForDriverForm();
-            showAlert('Driver configuration not found. Please set HQ, Home, and Job Types.', 'warning');
+            document.getElementById('driverMaxDestinations').value = 25; // Default value
+            showAlert('Driver configuration not found. Please set HQ, Home, Max Destinations, and Job Types.', 'warning');
         }
         
         // Hide results
@@ -3205,6 +3215,25 @@ async function showEditDriverForm(driverEmail) {
         if (submitButton) {
             submitButton.innerHTML = '<i class="fas fa-save me-2"></i>Update Driver';
             submitButton.setAttribute('onclick', `handleEditDriverSubmit('${driverEmail}')`);
+        }
+        
+        // Add delete button if it doesn't exist
+        let deleteButton = document.querySelector('#addDriverCard .delete-driver-btn');
+        if (!deleteButton) {
+            deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'btn btn-danger delete-driver-btn';
+            deleteButton.innerHTML = '<i class="fas fa-trash me-2"></i>Delete Driver';
+            deleteButton.setAttribute('onclick', `confirmDeleteDriver('${driverEmail}', '${driver.member_first_name} ${driver.member_last_name}')`);
+            
+            // Insert after the submit button
+            submitButton.parentNode.insertBefore(deleteButton, submitButton.nextSibling);
+            
+            // Add some spacing
+            deleteButton.style.marginLeft = '10px';
+        } else {
+            // Update the onclick for existing delete button
+            deleteButton.setAttribute('onclick', `confirmDeleteDriver('${driverEmail}', '${driver.member_first_name} ${driver.member_last_name}')`);
         }
         
     } catch (error) {
@@ -3231,13 +3260,20 @@ async function handleEditDriverSubmit(originalEmail) {
         password: document.getElementById('memberPassword').value,
         hq: document.getElementById('driverHq').value.trim(),
         home: document.getElementById('driverHome').value.trim(),
+        max_destinations: parseInt(document.getElementById('driverMaxDestinations').value) || 25,
         types: selectedJobTypes
     };
     
     // Validate required fields (password is optional for editing)
     if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.hq || !formData.home) {
+        !formData.hq || !formData.home || !formData.max_destinations) {
         showAlert('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    // Validate max destinations is a positive number
+    if (formData.max_destinations <= 0) {
+        showAlert('Max destinations must be a positive number', 'danger');
         return;
     }
     
@@ -3277,6 +3313,7 @@ async function handleEditDriverSubmit(originalEmail) {
                     password: formData.password || undefined, // Only include if provided
                     hq: formData.hq,
                     home: formData.home,
+                    max_destinations: formData.max_destinations,
                     types: formData.types
                 }
             })
@@ -3367,8 +3404,123 @@ function cancelEditDriver() {
         submitButton.setAttribute('onclick', 'handleAddDriverSubmit()');
     }
     
+    // Remove delete button if it exists
+    const deleteButton = document.querySelector('#addDriverCard .delete-driver-btn');
+    if (deleteButton) {
+        deleteButton.remove();
+    }
+    
     // Use the existing cancelAddDriver function to handle the rest
     cancelAddDriver();
+}
+
+/**
+ * Confirm driver deletion (NEW FUNCTION)
+ */
+function confirmDeleteDriver(driverEmail, driverName) {
+    // Create confirmation modal
+    const modalHtml = `
+        <div class="modal fade" id="deleteDriverModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                            Confirm Delete Driver
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to delete <strong>${driverName}</strong>?</p>
+                        <p class="text-muted mb-0">This action cannot be undone. The driver will be removed from Route4Me and your local database.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="deleteDriver('${driverEmail}')">
+                            <i class="fas fa-trash me-2"></i>Delete Driver
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById('deleteDriverModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteDriverModal'));
+    modal.show();
+}
+
+/**
+ * Delete driver (NEW FUNCTION)
+ */
+async function deleteDriver(driverEmail) {
+    try {
+        // Get current username
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+        
+        // Close the confirmation modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteDriverModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // Show loading state
+        showLoadingInCard('addDriverCard', 'Deleting driver...');
+
+        // Submit delete request to backend
+        const response = await fetch(`${BACKEND_URL}/delete-driver`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                driver_email: driverEmail
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Clear loading state
+        hideLoadingInCard('addDriverCard');
+        
+        if (response.ok && data.success) {
+            showAlert('Driver deleted successfully!', 'success');
+            
+            // Remove driver from local subDrivers array
+            const driverIndex = subDrivers.findIndex(d => d.member_email === driverEmail);
+            if (driverIndex !== -1) {
+                subDrivers.splice(driverIndex, 1);
+            }
+            
+            // Go back to driver selection
+            cancelEditDriver();
+        } else {
+            showAlert(data.error || 'Failed to delete driver', 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error deleting driver:', error);
+        
+        // Clear loading state
+        hideLoadingInCard('addDriverCard');
+        
+        showAlert('Network error occurred while deleting driver', 'danger');
+    }
 }
 
 /**
@@ -3419,6 +3571,8 @@ window.setSelectedJobTypes = setSelectedJobTypes;
 window.saveLocationChanges = saveLocationChanges;
 window.initializeLocationMap = initializeLocationMap;
 window.showLocationMap = showLocationMap;
+window.confirmDeleteDriver = confirmDeleteDriver;
+window.deleteDriver = deleteDriver;
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 

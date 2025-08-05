@@ -232,6 +232,22 @@
                             <input type="text" class="form-control" id="driverHome" required>
                         </div>
                         <div class="mb-3">
+                            <label for="driverMaxDestinations" class="form-label">
+                                Max Destinations <span class="text-danger">*</span>
+                            </label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="driverMaxDestinations" 
+                                placeholder="Enter maximum destinations per route"
+                                min="1"
+                                max="500"
+                                value="25"
+                                required
+                            >
+                            <div class="form-text">Maximum number of stops this driver can handle per route (default: 25)</div>
+                        </div>
+                        <div class="mb-3">
                             <label for="driverTypes" class="form-label">Job Types</label>
                             <div id="jobTypesSelection" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
                                 <div class="text-center text-muted">
