@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit->
+                            <i class="fas fa-edit me-1"></i>Edit***
                         </button>
                     </div>
                 </div>
@@ -3587,8 +3587,11 @@ async function deleteDriver(driverEmail) {
 function showDeleteDriverResults(data, success) {
     console.log('More')
     const resultsDiv = document.getElementById('deleteDriverResults');
-    if (!resultsDiv) return;
-    
+    if (!resultsDiv) {
+        console.log('No results div found');
+        return;
+    }
+
     if (success) {
         resultsDiv.innerHTML = `
             <div class="alert alert-success">
