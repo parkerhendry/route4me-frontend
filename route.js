@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!!!
                         </button>
                     </div>
                 </div>
@@ -3424,7 +3424,6 @@ function confirmDeleteDriver(driverEmail, driverName) {
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
     hideCard('jobTypesCard');
-    hideCard('addDriverCard');
     
     // Hide step indicator and main container
     const stepIndicator = document.querySelector('.step-indicator');
@@ -3437,86 +3436,45 @@ function confirmDeleteDriver(driverEmail, driverName) {
         mainContainer.style.display = 'none';
     }
     
-    // Create and show delete confirmation card
-    let deleteCard = document.getElementById('deleteDriverCard');
-    if (!deleteCard) {
-        // Create the delete confirmation card if it doesn't exist
-        const cardHtml = `
-            <div class="card hidden" id="deleteDriverCard">
-                <div class="card-header">
-                    <h5>
-                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Delete Driver
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="text-center mb-4">
-                        <i class="fas fa-user-times fa-4x text-danger mb-3"></i>
-                        <h6 id="deleteDriverMessage">Are you sure you want to delete this driver?</h6>
-                        <p class="text-muted" id="deleteDriverWarning">This action cannot be undone. The driver will be removed from Route4Me and your local database.</p>
-                    </div>
-                    <div class="text-center">
-                        <button type="button" class="btn btn-secondary me-3" onclick="cancelDeleteDriver()">
-                            <i class="fas fa-times me-2"></i>Cancel
-                        </button>
-                        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                            <i class="fas fa-trash me-2"></i>Delete Driver
-                        </button>
-                    </div>
-                    <div class="mt-3 hidden" id="deleteDriverResults">
-                        <!-- Results will be shown here -->
-                    </div>
-                </div>
+    // Show add driver card but modify it for delete confirmation
+    showCard('addDriverCard');
+    
+    // Update card header for delete confirmation
+    const cardHeader = document.querySelector('#addDriverCard .card-header h5');
+    if (cardHeader) {
+        cardHeader.innerHTML = '<i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Delete Driver';
+    }
+    
+    // Replace the form content with delete confirmation
+    const cardBody = document.querySelector('#addDriverCard .card-body');
+    if (cardBody) {
+        cardBody.innerHTML = `
+            <div class="text-center mb-4">
+                <i class="fas fa-user-times fa-4x text-danger mb-3"></i>
+                <h6>Are you sure you want to delete ${driverName}?</h6>
+                <p class="text-muted">This action cannot be undone. The driver will be removed from Route4Me and your local database.</p>
+            </div>
+            <div class="text-center">
+                <button type="button" class="btn btn-secondary me-3" onclick="cancelDeleteDriver()">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-danger" onclick="deleteDriver('${driverEmail}')">
+                    <i class="fas fa-trash me-2"></i>Delete Driver
+                </button>
+            </div>
+            <div class="mt-3 hidden" id="deleteDriverResults">
+                <!-- Results will be shown here -->
             </div>
         `;
-        
-        // Add the card to the page
-        document.body.insertAdjacentHTML('beforeend', cardHtml);
-        deleteCard = document.getElementById('deleteDriverCard');
     }
-    
-    // Update the message and button for this specific driver
-    document.getElementById('deleteDriverMessage').textContent = `Are you sure you want to delete ${driverName}?`;
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
-    confirmBtn.setAttribute('onclick', `deleteDriver('${driverEmail}')`);
-    
-    // Hide results from previous operations
-    const resultsDiv = document.getElementById('deleteDriverResults');
-    if (resultsDiv) {
-        resultsDiv.classList.add('hidden');
-        resultsDiv.innerHTML = '';
-    }
-    
-    // Show the delete confirmation card
-    showCard('deleteDriverCard');
 }
 
 /**
  * Cancel driver deletion (NEW FUNCTION)
  */
 function cancelDeleteDriver() {
-    hideCard('deleteDriverCard');
-    
-    // Show step indicator and main container again
-    const stepIndicator = document.querySelector('.step-indicator');
-    if (stepIndicator) {
-        stepIndicator.style.display = 'flex';
-    }
-    
-    const mainContainer = document.getElementById('route4meApp');
-    if (mainContainer) {
-        mainContainer.style.display = 'block';
-    }
-    
-    // Return to the appropriate card based on current step
-    if (currentStep === 1) {
-        showCard('userValidationCard');
-    } else if (currentStep === 2) {
-        showCard('driverSelectionCard');
-    } else if (currentStep === 3) {
-        showCard('addressUploadCard');
-    } else if (currentStep === 4) {
-        showCard('routeCreationCard');
-    }
+    // Use the existing cancelAddDriver function to restore the UI
+    cancelAddDriver();
 }
 
 /**
@@ -3533,7 +3491,7 @@ async function deleteDriver(driverEmail) {
         }
         
         // Show loading state
-        showLoadingInCard('deleteDriverCard', 'Deleting driver...');
+        showLoadingInCard('addDriverCard', 'Deleting driver...');
 
         // Submit delete request to backend
         const response = await fetch(`${BACKEND_URL}/delete-driver`, {
@@ -3550,7 +3508,7 @@ async function deleteDriver(driverEmail) {
         const data = await response.json();
         
         // Clear loading state
-        hideLoadingInCard('deleteDriverCard');
+        hideLoadingInCard('addDriverCard');
         
         if (response.ok && data.success) {
             showDeleteDriverResults(data, true);
@@ -3570,7 +3528,7 @@ async function deleteDriver(driverEmail) {
         console.error('Error deleting driver:', error);
         
         // Clear loading state
-        hideLoadingInCard('deleteDriverCard');
+        hideLoadingInCard('addDriverCard');
         
         showDeleteDriverResults({ error: 'Network error occurred while deleting driver' }, false);
         showAlert('Network error occurred while deleting driver', 'danger');
@@ -3620,18 +3578,8 @@ function showDeleteDriverResults(data, success) {
  * Return to driver selection after successful delete (NEW FUNCTION)
  */
 function returnToDriverSelectionAfterDelete() {
-    hideCard('deleteDriverCard');
-    
-    // Show step indicator and main container again
-    const stepIndicator = document.querySelector('.step-indicator');
-    if (stepIndicator) {
-        stepIndicator.style.display = 'flex';
-    }
-    
-    const mainContainer = document.getElementById('route4meApp');
-    if (mainContainer) {
-        mainContainer.style.display = 'block';
-    }
+    // Use cancelAddDriver to restore the UI properly
+    cancelAddDriver();
     
     // Reload the driver list to reflect the deletion
     validateUser(); // This will refresh the driver list
@@ -3687,6 +3635,9 @@ window.initializeLocationMap = initializeLocationMap;
 window.showLocationMap = showLocationMap;
 window.confirmDeleteDriver = confirmDeleteDriver;
 window.deleteDriver = deleteDriver;
+window.cancelDeleteDriver = cancelDeleteDriver;
+window.returnToDriverSelectionAfterDelete = returnToDriverSelectionAfterDelete;
+window.showDeleteDriverResults = showDeleteDriverResults;
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 
