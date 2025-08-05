@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit!!!
+                            <i class="fas fa-edit me-1"></i>Edit
                         </button>
                     </div>
                 </div>
@@ -2446,11 +2446,11 @@ function showAddDriverForm() {
         mainContainer.style.display = 'none';
     }
     
+    // Ensure form is in default state before showing
+    resetAddDriverFormToDefault();
+    
     // Show add driver card
     showCard('addDriverCard');
-    
-    // Reset form
-    document.getElementById('addDriverForm').reset();
     
     // Hide results
     const resultsDiv = document.getElementById('addDriverResults');
@@ -2467,6 +2467,9 @@ function showAddDriverForm() {
  * Cancel add driver operation
  */
 function cancelAddDriver() {
+    // Ensure form is in default state
+    resetAddDriverFormToDefault();
+    
     hideCard('addDriverCard');
     
     // Show step indicator and main container again
@@ -3355,8 +3358,11 @@ async function handleEditDriverSubmit(originalEmail) {
  * Show edit driver success results (MODIFIED FUNCTION)
  */
 function showEditDriverResults(data) {
-    // Instead of showing results, automatically go back to driver selection
-    cancelEditDriver();
+    // Reset form to default state before going back
+    resetAddDriverFormToDefault();
+    
+    // Go back to driver selection
+    cancelAddDriver();
     
     // Re-render the driver list to reflect the updated information
     validateUser();
@@ -3388,17 +3394,31 @@ function showEditDriverError(errorMessage) {
  * Cancel edit driver operation (NEW FUNCTION)
  */
 function cancelEditDriver() {
-    // Reset form elements that were modified for editing
-    document.getElementById('memberEmail').disabled = false;
+    // Reset all form modifications made during editing
+    resetAddDriverFormToDefault();
     
-    // Reset card header
+    // Use the existing cancelAddDriver function to handle the rest
+    cancelAddDriver();
+}
+
+/**
+ * Reset the add driver form to its default state (NEW FUNCTION)
+ */
+function resetAddDriverFormToDefault() {
+    // Re-enable email field
+    const emailField = document.getElementById('memberEmail');
+    if (emailField) {
+        emailField.disabled = false;
+    }
+    
+    // Reset card header to add driver
     const cardHeader = document.querySelector('#addDriverCard .card-header h5');
     if (cardHeader) {
         cardHeader.innerHTML = '<i class="fas fa-user-plus me-2"></i>Add New Driver';
     }
     
-    // Reset submit button
-    const submitButton = document.querySelector('#addDriverCard button[onclick*="handleEditDriverSubmit"]');
+    // Reset submit button to add driver
+    const submitButton = document.querySelector('#addDriverCard button[onclick*="handleEditDriverSubmit"], #addDriverCard button[onclick*="handleAddDriverSubmit"]');
     if (submitButton) {
         submitButton.innerHTML = '<i class="fas fa-plus me-2"></i>Add Driver';
         submitButton.setAttribute('onclick', 'handleAddDriverSubmit()');
@@ -3410,8 +3430,28 @@ function cancelEditDriver() {
         deleteButton.remove();
     }
     
-    // Use the existing cancelAddDriver function to handle the rest
-    cancelAddDriver();
+    // Reset form fields
+    const form = document.getElementById('addDriverForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Ensure max destinations field is visible and has default value
+    const maxDestField = document.getElementById('driverMaxDestinations');
+    if (maxDestField) {
+        maxDestField.value = 25;
+        maxDestField.style.display = '';
+    }
+    
+    // Reset job types selection
+    const jobTypesContainer = document.getElementById('jobTypesSelection');
+    if (jobTypesContainer) {
+        jobTypesContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-spinner fa-spin"></i> Loading job types...
+            </div>
+        `;
+    }
 }
 
 /**
@@ -3473,6 +3513,9 @@ function confirmDeleteDriver(driverEmail, driverName) {
  * Cancel driver deletion (NEW FUNCTION)
  */
 function cancelDeleteDriver() {
+    // Reset form to default state before going back
+    resetAddDriverFormToDefault();
+    
     // Use the existing cancelAddDriver function to restore the UI
     cancelAddDriver();
 }
@@ -3578,6 +3621,9 @@ function showDeleteDriverResults(data, success) {
  * Return to driver selection after successful delete (NEW FUNCTION)
  */
 function returnToDriverSelectionAfterDelete() {
+    // Reset form to default state before going back
+    resetAddDriverFormToDefault();
+    
     // Use cancelAddDriver to restore the UI properly
     cancelAddDriver();
     
