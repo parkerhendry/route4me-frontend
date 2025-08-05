@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit$$$
                         </button>
                     </div>
                 </div>
@@ -3621,6 +3621,9 @@ function showDeleteDriverResults(data, success) {
  * Return to driver selection after successful delete (NEW FUNCTION)
  */
 function returnToDriverSelectionAfterDelete() {
+
+    console.log('Returning to driver selection after delete');
+
     // Reset form to default state before going back
     resetAddDriverFormToDefault();
     
