@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit$$$
+                            <i class="fas fa-edit me-1"></i>Edit->
                         </button>
                     </div>
                 </div>
@@ -3549,11 +3549,14 @@ async function deleteDriver(driverEmail) {
         });
         
         const data = await response.json();
+
+        console.log('There')
         
         // Clear loading state
         hideLoadingInCard('addDriverCard');
         
         if (response.ok && data.success) {
+            console.log('Here');
             showDeleteDriverResults(data, true);
             showAlert('Driver deleted successfully!', 'success');
             
@@ -3582,6 +3585,7 @@ async function deleteDriver(driverEmail) {
  * Show delete driver results (NEW FUNCTION)
  */
 function showDeleteDriverResults(data, success) {
+    console.log('More')
     const resultsDiv = document.getElementById('deleteDriverResults');
     if (!resultsDiv) return;
     
