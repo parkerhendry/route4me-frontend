@@ -667,7 +667,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit!!!
+                            <i class="fas fa-edit me-1"></i>Edit
                         </button>
                     </div>
                 </div>
@@ -3415,52 +3415,112 @@ function cancelEditDriver() {
 }
 
 /**
- * Confirm driver deletion (NEW FUNCTION)
+ * Confirm driver deletion (MODIFIED - uses card instead of modal)
  */
 function confirmDeleteDriver(driverEmail, driverName) {
-    // Create confirmation modal
-    const modalHtml = `
-        <div class="modal fade" id="deleteDriverModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                            Confirm Delete Driver
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    // Hide ALL cards and step indicator
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('jobTypesCard');
+    hideCard('addDriverCard');
+    
+    // Hide step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'none';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'none';
+    }
+    
+    // Create and show delete confirmation card
+    let deleteCard = document.getElementById('deleteDriverCard');
+    if (!deleteCard) {
+        // Create the delete confirmation card if it doesn't exist
+        const cardHtml = `
+            <div class="card hidden" id="deleteDriverCard">
+                <div class="card-header">
+                    <h5>
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Delete Driver
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-user-times fa-4x text-danger mb-3"></i>
+                        <h6 id="deleteDriverMessage">Are you sure you want to delete this driver?</h6>
+                        <p class="text-muted" id="deleteDriverWarning">This action cannot be undone. The driver will be removed from Route4Me and your local database.</p>
                     </div>
-                    <div class="modal-body">
-                        <p>Are you sure you want to delete <strong>${driverName}</strong>?</p>
-                        <p class="text-muted mb-0">This action cannot be undone. The driver will be removed from Route4Me and your local database.</p>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" onclick="deleteDriver('${driverEmail}')">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-secondary me-3" onclick="cancelDeleteDriver()">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
+                        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
                             <i class="fas fa-trash me-2"></i>Delete Driver
                         </button>
                     </div>
+                    <div class="mt-3 hidden" id="deleteDriverResults">
+                        <!-- Results will be shown here -->
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
-    
-    // Remove existing modal if present
-    const existingModal = document.getElementById('deleteDriverModal');
-    if (existingModal) {
-        existingModal.remove();
+        `;
+        
+        // Add the card to the page
+        document.body.insertAdjacentHTML('beforeend', cardHtml);
+        deleteCard = document.getElementById('deleteDriverCard');
     }
     
-    // Add modal to page
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    // Update the message and button for this specific driver
+    document.getElementById('deleteDriverMessage').textContent = `Are you sure you want to delete ${driverName}?`;
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.setAttribute('onclick', `deleteDriver('${driverEmail}')`);
     
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('deleteDriverModal'));
-    modal.show();
+    // Hide results from previous operations
+    const resultsDiv = document.getElementById('deleteDriverResults');
+    if (resultsDiv) {
+        resultsDiv.classList.add('hidden');
+        resultsDiv.innerHTML = '';
+    }
+    
+    // Show the delete confirmation card
+    showCard('deleteDriverCard');
 }
 
 /**
- * Delete driver (NEW FUNCTION)
+ * Cancel driver deletion (NEW FUNCTION)
+ */
+function cancelDeleteDriver() {
+    hideCard('deleteDriverCard');
+    
+    // Show step indicator and main container again
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'flex';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
+    }
+    
+    // Return to the appropriate card based on current step
+    if (currentStep === 1) {
+        showCard('userValidationCard');
+    } else if (currentStep === 2) {
+        showCard('driverSelectionCard');
+    } else if (currentStep === 3) {
+        showCard('addressUploadCard');
+    } else if (currentStep === 4) {
+        showCard('routeCreationCard');
+    }
+}
+
+/**
+ * Delete driver (MODIFIED - shows results in card and reloads driver list)
  */
 async function deleteDriver(driverEmail) {
     try {
@@ -3472,14 +3532,8 @@ async function deleteDriver(driverEmail) {
             username = currentUser.member_email;
         }
         
-        // Close the confirmation modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteDriverModal'));
-        if (modal) {
-            modal.hide();
-        }
-        
         // Show loading state
-        showLoadingInCard('addDriverCard', 'Deleting driver...');
+        showLoadingInCard('deleteDriverCard', 'Deleting driver...');
 
         // Submit delete request to backend
         const response = await fetch(`${BACKEND_URL}/delete-driver`, {
@@ -3496,9 +3550,10 @@ async function deleteDriver(driverEmail) {
         const data = await response.json();
         
         // Clear loading state
-        hideLoadingInCard('addDriverCard');
+        hideLoadingInCard('deleteDriverCard');
         
         if (response.ok && data.success) {
+            showDeleteDriverResults(data, true);
             showAlert('Driver deleted successfully!', 'success');
             
             // Remove driver from local subDrivers array
@@ -3506,10 +3561,8 @@ async function deleteDriver(driverEmail) {
             if (driverIndex !== -1) {
                 subDrivers.splice(driverIndex, 1);
             }
-            
-            // Go back to driver selection
-            cancelEditDriver();
         } else {
+            showDeleteDriverResults(data, false);
             showAlert(data.error || 'Failed to delete driver', 'danger');
         }
         
@@ -3517,10 +3570,71 @@ async function deleteDriver(driverEmail) {
         console.error('Error deleting driver:', error);
         
         // Clear loading state
-        hideLoadingInCard('addDriverCard');
+        hideLoadingInCard('deleteDriverCard');
         
+        showDeleteDriverResults({ error: 'Network error occurred while deleting driver' }, false);
         showAlert('Network error occurred while deleting driver', 'danger');
     }
+}
+
+/**
+ * Show delete driver results (NEW FUNCTION)
+ */
+function showDeleteDriverResults(data, success) {
+    const resultsDiv = document.getElementById('deleteDriverResults');
+    if (!resultsDiv) return;
+    
+    if (success) {
+        resultsDiv.innerHTML = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle me-2"></i>Driver Deleted Successfully!</h6>
+                <p class="mb-0">The driver has been removed from Route4Me and your local database.</p>
+            </div>
+            <div class="text-center">
+                <button class="btn btn-primary" onclick="returnToDriverSelectionAfterDelete()">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Driver Selection
+                </button>
+            </div>
+        `;
+    } else {
+        resultsDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Deleting Driver</h6>
+                <p class="mb-0">${data.error || 'An error occurred while deleting the driver.'}</p>
+            </div>
+            <div class="text-center">
+                <button class="btn btn-secondary me-2" onclick="cancelDeleteDriver()">
+                    <i class="fas fa-arrow-left me-2"></i>Back
+                </button>
+                <button class="btn btn-primary" onclick="location.reload()">
+                    <i class="fas fa-redo me-2"></i>Refresh Page
+                </button>
+            </div>
+        `;
+    }
+    
+    resultsDiv.classList.remove('hidden');
+}
+
+/**
+ * Return to driver selection after successful delete (NEW FUNCTION)
+ */
+function returnToDriverSelectionAfterDelete() {
+    hideCard('deleteDriverCard');
+    
+    // Show step indicator and main container again
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'flex';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
+    }
+    
+    // Reload the driver list to reflect the deletion
+    validateUser(); // This will refresh the driver list
 }
 
 /**
