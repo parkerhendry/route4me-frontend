@@ -571,11 +571,6 @@ function showValidationError(errorMessage) {
  * Proceed to driver selection step
  */
 function proceedToDriverSelection() {
-    if (subDrivers.length === 0) {
-        showAlert('No drivers found in your Route4Me account.', 'warning');
-        return;
-    }
-    
     currentStep = 2;
     updateStepIndicator(2);
     hideCard('userValidationCard');
@@ -590,6 +585,36 @@ function proceedToDriverSelection() {
 function renderDriverList() {
     const driverList = document.getElementById('driverList');
     if (!driverList) return;
+    
+    // Handle case where no drivers are found
+    if (subDrivers.length === 0) {
+        driverList.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-users-slash text-muted" style="font-size: 4rem;"></i>
+                <h5 class="mt-3">No Drivers Found</h5>
+                <p class="text-muted mb-4">
+                    No drivers were found in your Route4Me account.<br>
+                    You can add a new driver to get started.
+                </p>
+                <div class="d-flex justify-content-center gap-3">
+                    <button class="btn btn-primary" onclick="showAddDriverForm()">
+                        <i class="fas fa-user-plus me-2"></i>Add New Driver
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="resetApplication()">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Start
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Disable the proceed button since no drivers are available
+        const proceedBtn = document.getElementById('proceedToUploadBtn');
+        if (proceedBtn) {
+            proceedBtn.disabled = true;
+        }
+        
+        return;
+    }
     
     // Add search bar and select all controls
     const searchHtml = `
@@ -667,7 +692,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!!!
                         </button>
                     </div>
                 </div>
@@ -3050,6 +3075,10 @@ function hideLoadingInCard(cardId) {
                             <div class="mb-3">
                                 <label for="driverHome" class="form-label">Home Address</label>
                                 <input type="text" class="form-control" id="driverHome" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="driverMaxDestinations" class="form-label">Max Destinations</label>
+                                <input type="number" class="form-control" id="driverMaxDestinations" required>
                             </div>
                             <div class="mb-3">
                                 <label for="driverTypes" class="form-label">Service Types</label>
