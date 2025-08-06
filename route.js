@@ -600,9 +600,6 @@ function renderDriverList() {
                     <button class="btn btn-primary" onclick="showAddDriverForm()">
                         <i class="fas fa-user-plus me-2"></i>Add New Driver
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="resetApplication()">
-                        <i class="fas fa-arrow-left me-2"></i>Back to Start
-                    </button>
                 </div>
             </div>
         `;
