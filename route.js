@@ -2236,6 +2236,24 @@ function showRouteCreationResults(data) {
         </div>
     `;
     
+    // Show reassignment messages if any
+    if (data.reassignment_messages && data.reassignment_messages.length > 0) {
+        resultsHtml += `
+            <div class="alert alert-warning mb-3">
+                <h6><i class="fas fa-exchange-alt me-2"></i>Route Reassignments</h6>
+                <div class="reassignment-messages">
+        `;
+        
+        data.reassignment_messages.forEach(message => {
+            resultsHtml += `<p class="mb-1"><i class="fas fa-info-circle me-1"></i>${message}</p>`;
+        });
+        
+        resultsHtml += `
+                </div>
+            </div>
+        `;
+    }
+    
     // Show individual route results
     if (data.created_routes && data.created_routes.length > 0) {
         resultsHtml += '<div class="route-results">';
@@ -2255,25 +2273,35 @@ function showRouteCreationResults(data) {
                             </p>
                 `;
                 
-                // Add route addresses if available
-                if (route.route_addresses && route.route_addresses.length > 0) {
+                // Add route addresses if available - use complete route for display
+                if (route.complete_route_addresses && route.complete_route_addresses.length > 0) {
                     resultsHtml += `
                         <div class="mt-3">
-                            <h6 class="mb-2"><i class="fas fa-list me-2"></i>Route Addresses (in order):</h6>
+                            <h6 class="mb-2"><i class="fas fa-list me-2"></i>Complete Route (in order):</h6>
                             <div class="route-addresses" style="max-height: 300px; overflow-y: auto;">
                                 <ol class="list-group list-group-numbered">
                     `;
                     
-                    route.route_addresses.forEach(addr => {
+                    route.complete_route_addresses.forEach(addr => {
                         const isStartingPoint = addr.sequence_no === 0;
-                        const listItemClass = isStartingPoint ? 'list-group-item-info' : '';
-                        const startingPointBadge = isStartingPoint ? '<span class="badge bg-info ms-2">Starting Point</span>' : '';
+                        const isEndingPoint = addr.sequence_no === route.complete_route_addresses.length - 1;
+                        
+                        let listItemClass = '';
+                        let badge = '';
+                        
+                        if (isStartingPoint) {
+                            listItemClass = 'list-group-item-success';
+                            badge = '<span class="badge bg-success ms-2">Starting Point</span>';
+                        } else if (isEndingPoint) {
+                            listItemClass = 'list-group-item-success';
+                            badge = '<span class="badge bg-success ms-2">Ending Point</span>';
+                        }
                         
                         resultsHtml += `
                             <li class="list-group-item ${listItemClass}">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div>
-                                        <strong>${addr.address}</strong>${startingPointBadge}
+                                        <strong>${addr.address}</strong>${badge}
                                         ${addr.alias ? `<br><small class="text-muted">${addr.alias}</small>` : ''}
                                     </div>
                                 </div>

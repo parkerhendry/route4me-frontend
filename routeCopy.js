@@ -571,11 +571,6 @@ function showValidationError(errorMessage) {
  * Proceed to driver selection step
  */
 function proceedToDriverSelection() {
-    if (subDrivers.length === 0) {
-        showAlert('No drivers found in your Route4Me account.', 'warning');
-        return;
-    }
-    
     currentStep = 2;
     updateStepIndicator(2);
     hideCard('userValidationCard');
@@ -590,6 +585,33 @@ function proceedToDriverSelection() {
 function renderDriverList() {
     const driverList = document.getElementById('driverList');
     if (!driverList) return;
+    
+    // Handle case where no drivers are found
+    if (subDrivers.length === 0) {
+        driverList.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-users-slash text-muted" style="font-size: 4rem;"></i>
+                <h5 class="mt-3">No Drivers Found</h5>
+                <p class="text-muted mb-4">
+                    No drivers were found in your Route4Me account.<br>
+                    You can add a new driver to get started.
+                </p>
+                <div class="d-flex justify-content-center gap-3">
+                    <button class="btn btn-primary" onclick="showAddDriverForm()">
+                        <i class="fas fa-user-plus me-2"></i>Add New Driver
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Disable the proceed button since no drivers are available
+        const proceedBtn = document.getElementById('proceedToUploadBtn');
+        if (proceedBtn) {
+            proceedBtn.disabled = true;
+        }
+        
+        return;
+    }
     
     // Add search bar and select all controls
     const searchHtml = `
@@ -667,7 +689,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit
+                            <i class="fas fa-edit me-1"></i>Edit!!!
                         </button>
                     </div>
                 </div>
@@ -2446,11 +2468,11 @@ function showAddDriverForm() {
         mainContainer.style.display = 'none';
     }
     
+    // Ensure form is in default state before showing
+    resetAddDriverFormToDefault();
+    
     // Show add driver card
     showCard('addDriverCard');
-    
-    // Reset form
-    document.getElementById('addDriverForm').reset();
     
     // Hide results
     const resultsDiv = document.getElementById('addDriverResults');
@@ -2467,6 +2489,9 @@ function showAddDriverForm() {
  * Cancel add driver operation
  */
 function cancelAddDriver() {
+    // Ensure form is in default state
+    resetAddDriverFormToDefault();
+    
     hideCard('addDriverCard');
     
     // Show step indicator and main container again
@@ -2510,13 +2535,20 @@ async function handleAddDriverSubmit() {
         password: document.getElementById('memberPassword').value,
         hq: document.getElementById('driverHq').value.trim(),
         home: document.getElementById('driverHome').value.trim(),
+        max_destinations: parseInt(document.getElementById('driverMaxDestinations').value) || 25,
         types: selectedJobTypes
     };
     
     // Validate required fields
     if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.password || !formData.hq || !formData.home) {
+        !formData.password || !formData.hq || !formData.home || !formData.max_destinations) {
         showAlert('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    // Validate max destinations is a positive number
+    if (formData.max_destinations <= 0) {
+        showAlert('Max destinations must be a positive number', 'danger');
         return;
     }
     
@@ -2559,6 +2591,7 @@ async function handleAddDriverSubmit() {
                     password: formData.password,
                     hq: formData.hq,
                     home: formData.home,
+                    max_destinations: formData.max_destinations,
                     types: formData.types // This is now an array from getSelectedJobTypes()
                 }
             })
@@ -2592,46 +2625,22 @@ async function handleAddDriverSubmit() {
  * Show add driver success results
  */
 function showAddDriverResults(data) {
-    const resultsDiv = document.getElementById('addDriverResults');
-    if (!resultsDiv) return;
+    // Reset form to default state before going back
+    resetAddDriverFormToDefault();
     
-    resultsDiv.innerHTML = `
-        <div class="alert alert-success">
-            <h6><i class="fas fa-check-circle me-2"></i>Driver Added Successfully!</h6>
-            <p class="mb-2"><strong>Route4Me Member ID:</strong> ${data.route4me_member_id}</p>
-            <p class="mb-2"><strong>Email:</strong> ${data.driver_email}</p>
-            <p class="mb-0"><strong>Configuration:</strong> Driver information saved to local database</p>
-        </div>
-        <div class="text-center">
-            <button class="btn btn-primary" onclick="cancelAddDriver()">
-                <i class="fas fa-arrow-left me-2"></i>Back to App
-            </button>
-        </div>
-    `;
+    // Go back to driver selection
+    cancelAddDriver();
     
-    resultsDiv.classList.remove('hidden');
+    // Re-render the driver list to reflect the new driver
+    validateUser();
 }
 
 /**
  * Show add driver error
  */
 function showAddDriverError(errorMessage) {
-    const resultsDiv = document.getElementById('addDriverResults');
-    if (!resultsDiv) return;
-    
-    resultsDiv.innerHTML = `
-        <div class="alert alert-danger">
-            <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Adding Driver</h6>
-            <p class="mb-0">${errorMessage}</p>
-        </div>
-        <div class="text-center">
-            <button class="btn btn-secondary" onclick="showAddDriverForm()">
-                <i class="fas fa-redo me-2"></i>Try Again
-            </button>
-        </div>
-    `;
-    
-    resultsDiv.classList.remove('hidden');
+    // Just show the alert, don't create results div content
+    showAlert(errorMessage, 'danger');
 }
 
 /**
@@ -3065,6 +3074,10 @@ function hideLoadingInCard(cardId) {
                                 <input type="text" class="form-control" id="driverHome" required>
                             </div>
                             <div class="mb-3">
+                                <label for="driverMaxDestinations" class="form-label">Max Destinations</label>
+                                <input type="number" class="form-control" id="driverMaxDestinations" required>
+                            </div>
+                            <div class="mb-3">
                                 <label for="driverTypes" class="form-label">Service Types</label>
                                 <div id="jobTypesSelection" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
                                     <div class="text-center text-muted">
@@ -3080,7 +3093,7 @@ function hideLoadingInCard(cardId) {
                             <i class="fas fa-times me-2"></i>Cancel
                         </button>
                         <button type="submit" class="btn btn-success" onclick="handleAddDriverSubmit()">
-                            <i class="fas fa-plus me-2"></i>Add Driver
+                            <i class="fas fa-plus me-2"></i>Add Driver->
                         </button>
                     </div>
                 </form>
@@ -3181,6 +3194,7 @@ async function showEditDriverForm(driverEmail) {
         if (response.ok && configData.success) {
             document.getElementById('driverHq').value = configData.config.hq || '';
             document.getElementById('driverHome').value = configData.config.home || '';
+            document.getElementById('driverMaxDestinations').value = configData.config.max_destinations || 25;
             
             // Load job types and pre-select the driver's types
             await loadJobTypesForDriverForm();
@@ -3190,7 +3204,8 @@ async function showEditDriverForm(driverEmail) {
         } else {
             // If no config found, still load job types but don't pre-select any
             await loadJobTypesForDriverForm();
-            showAlert('Driver configuration not found. Please set HQ, Home, and Job Types.', 'warning');
+            document.getElementById('driverMaxDestinations').value = 25; // Default value
+            showAlert('Driver configuration not found. Please set HQ, Home, Max Destinations, and Job Types.', 'warning');
         }
         
         // Hide results
@@ -3205,6 +3220,25 @@ async function showEditDriverForm(driverEmail) {
         if (submitButton) {
             submitButton.innerHTML = '<i class="fas fa-save me-2"></i>Update Driver';
             submitButton.setAttribute('onclick', `handleEditDriverSubmit('${driverEmail}')`);
+        }
+        
+        // Add delete button if it doesn't exist
+        let deleteButton = document.querySelector('#addDriverCard .delete-driver-btn');
+        if (!deleteButton) {
+            deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'btn btn-danger delete-driver-btn';
+            deleteButton.innerHTML = '<i class="fas fa-trash me-2"></i>Delete Driver';
+            deleteButton.setAttribute('onclick', `confirmDeleteDriver('${driverEmail}', '${driver.member_first_name} ${driver.member_last_name}')`);
+            
+            // Insert after the submit button
+            submitButton.parentNode.insertBefore(deleteButton, submitButton.nextSibling);
+            
+            // Add some spacing
+            deleteButton.style.marginLeft = '10px';
+        } else {
+            // Update the onclick for existing delete button
+            deleteButton.setAttribute('onclick', `confirmDeleteDriver('${driverEmail}', '${driver.member_first_name} ${driver.member_last_name}')`);
         }
         
     } catch (error) {
@@ -3231,13 +3265,20 @@ async function handleEditDriverSubmit(originalEmail) {
         password: document.getElementById('memberPassword').value,
         hq: document.getElementById('driverHq').value.trim(),
         home: document.getElementById('driverHome').value.trim(),
+        max_destinations: parseInt(document.getElementById('driverMaxDestinations').value) || 25,
         types: selectedJobTypes
     };
     
     // Validate required fields (password is optional for editing)
     if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.hq || !formData.home) {
+        !formData.hq || !formData.home || !formData.max_destinations) {
         showAlert('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    // Validate max destinations is a positive number
+    if (formData.max_destinations <= 0) {
+        showAlert('Max destinations must be a positive number', 'danger');
         return;
     }
     
@@ -3277,6 +3318,7 @@ async function handleEditDriverSubmit(originalEmail) {
                     password: formData.password || undefined, // Only include if provided
                     hq: formData.hq,
                     home: formData.home,
+                    max_destinations: formData.max_destinations,
                     types: formData.types
                 }
             })
@@ -3318,8 +3360,11 @@ async function handleEditDriverSubmit(originalEmail) {
  * Show edit driver success results (MODIFIED FUNCTION)
  */
 function showEditDriverResults(data) {
-    // Instead of showing results, automatically go back to driver selection
-    cancelEditDriver();
+    // Reset form to default state before going back
+    resetAddDriverFormToDefault();
+    
+    // Go back to driver selection
+    cancelAddDriver();
     
     // Re-render the driver list to reflect the updated information
     validateUser();
@@ -3351,24 +3396,190 @@ function showEditDriverError(errorMessage) {
  * Cancel edit driver operation (NEW FUNCTION)
  */
 function cancelEditDriver() {
-    // Reset form elements that were modified for editing
-    document.getElementById('memberEmail').disabled = false;
+    // Reset all form modifications made during editing
+    resetAddDriverFormToDefault();
     
-    // Reset card header
+    // Use the existing cancelAddDriver function to handle the rest
+    cancelAddDriver();
+}
+
+/**
+ * Reset the add driver form to its default state (NEW FUNCTION)
+ */
+function resetAddDriverFormToDefault() {
+    // Re-enable email field
+    const emailField = document.getElementById('memberEmail');
+    if (emailField) {
+        emailField.disabled = false;
+    }
+    
+    // Reset card header to add driver
     const cardHeader = document.querySelector('#addDriverCard .card-header h5');
     if (cardHeader) {
         cardHeader.innerHTML = '<i class="fas fa-user-plus me-2"></i>Add New Driver';
     }
     
-    // Reset submit button
-    const submitButton = document.querySelector('#addDriverCard button[onclick*="handleEditDriverSubmit"]');
+    // Reset submit button to add driver
+    const submitButton = document.querySelector('#addDriverCard button[onclick*="handleEditDriverSubmit"], #addDriverCard button[onclick*="handleAddDriverSubmit"]');
     if (submitButton) {
         submitButton.innerHTML = '<i class="fas fa-plus me-2"></i>Add Driver';
         submitButton.setAttribute('onclick', 'handleAddDriverSubmit()');
     }
     
-    // Use the existing cancelAddDriver function to handle the rest
+    // Remove delete button if it exists
+    const deleteButton = document.querySelector('#addDriverCard .delete-driver-btn');
+    if (deleteButton) {
+        deleteButton.remove();
+    }
+    
+    // Reset form fields
+    const form = document.getElementById('addDriverForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Ensure max destinations field is visible and has default value
+    const maxDestField = document.getElementById('driverMaxDestinations');
+    if (maxDestField) {
+        maxDestField.value = 25;
+        maxDestField.style.display = '';
+    }
+    
+    // Reset job types selection
+    const jobTypesContainer = document.getElementById('jobTypesSelection');
+    if (jobTypesContainer) {
+        jobTypesContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-spinner fa-spin"></i> Loading job types...
+            </div>
+        `;
+    }
+}
+
+/**
+ * Confirm driver deletion (MODIFIED - uses card instead of modal)
+ */
+function confirmDeleteDriver(driverEmail, driverName) {
+    // Hide ALL cards and step indicator
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('jobTypesCard');
+    
+    // Hide step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'none';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'none';
+    }
+    
+    // Show add driver card but modify it for delete confirmation
+    showCard('addDriverCard');
+    
+    // Update card header for delete confirmation
+    const cardHeader = document.querySelector('#addDriverCard .card-header h5');
+    if (cardHeader) {
+        cardHeader.innerHTML = '<i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Delete Driver';
+    }
+    
+    // Replace the form content with delete confirmation
+    const cardBody = document.querySelector('#addDriverCard .card-body');
+    if (cardBody) {
+        cardBody.innerHTML = `
+            <div class="text-center mb-4">
+                <i class="fas fa-user-times fa-4x text-danger mb-3"></i>
+                <h6>Are you sure you want to delete ${driverName}?</h6>
+                <p class="text-muted">This action cannot be undone. The driver will be removed from Route4Me and your local database.</p>
+            </div>
+            <div class="text-center">
+                <button type="button" class="btn btn-secondary me-3" onclick="cancelDeleteDriver()">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-danger" onclick="deleteDriver('${driverEmail}')">
+                    <i class="fas fa-trash me-2"></i>Delete Driver
+                </button>
+            </div>
+            <div class="mt-3 hidden" id="deleteDriverResults">
+                <!-- Results will be shown here -->
+            </div>
+        `;
+    }
+}
+
+/**
+ * Cancel driver deletion (NEW FUNCTION)
+ */
+function cancelDeleteDriver() {
+    // Reset form to default state before going back
+    resetAddDriverFormToDefault();
+    
+    // Use the existing cancelAddDriver function to restore the UI
     cancelAddDriver();
+}
+
+/**
+ * Delete driver (MODIFIED - shows results in card and reloads driver list)
+ */
+async function deleteDriver(driverEmail) {
+    try {
+        // Get current username
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+        
+        // Show loading state
+        showLoadingInCard('addDriverCard', 'Deleting driver...');
+
+        // Submit delete request to backend
+        const response = await fetch(`${BACKEND_URL}/delete-driver`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                driver_email: driverEmail
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Clear loading state
+        hideLoadingInCard('addDriverCard');
+        
+        if (response.ok && data.success) {
+            showAlert('Driver deleted successfully!', 'success');
+            
+            // Remove driver from local subDrivers array
+            const driverIndex = subDrivers.findIndex(d => d.member_email === driverEmail);
+            if (driverIndex !== -1) {
+                subDrivers.splice(driverIndex, 1);
+            }
+            
+            // Reset form to default state and return to driver selection
+            resetAddDriverFormToDefault();
+            cancelAddDriver();
+            validateUser(); // This will refresh the driver list
+        } else {
+            showAlert(data.error || 'Failed to delete driver', 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error deleting driver:', error);
+        
+        // Clear loading state
+        hideLoadingInCard('addDriverCard');
+        
+        showAlert('Network error occurred while deleting driver', 'danger');
+    }
 }
 
 /**
@@ -3419,6 +3630,9 @@ window.setSelectedJobTypes = setSelectedJobTypes;
 window.saveLocationChanges = saveLocationChanges;
 window.initializeLocationMap = initializeLocationMap;
 window.showLocationMap = showLocationMap;
+window.confirmDeleteDriver = confirmDeleteDriver;
+window.deleteDriver = deleteDriver;
+window.cancelDeleteDriver = cancelDeleteDriver;
 
 if (isGeotabEnvironment) {
     geotab.addin.route4me = function () { 
