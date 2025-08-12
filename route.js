@@ -2282,11 +2282,14 @@ function showRouteCreationResults(data) {
                                 <ol class="list-group list-group-numbered">
                     `;
                     
-                    route.complete_route_addresses.forEach(addr => {
-                        const isStartingPoint = addr.sequence_no === 0;
-                        const isEndingPoint = addr.sequence_no === route.complete_route_addresses.length - 1;
+                    // Sort addresses by sequence number to ensure proper order
+                    const sortedAddresses = [...route.complete_route_addresses].sort((a, b) => a.sequence_no - b.sequence_no);
+                    
+                    sortedAddresses.forEach((addr, index) => {
+                        const isStartingPoint = index === 0;
+                        const isEndingPoint = index === sortedAddresses.length - 1;
 
-                        console.log('Starting point:', isStartingPoint, 'Ending point:', isEndingPoint);
+                        console.log('Address:', addr.address, 'Index:', index, 'Starting point:', isStartingPoint, 'Ending point:', isEndingPoint);
                         
                         let listItemClass = '';
                         let badge = '';
