@@ -2285,6 +2285,8 @@ function showRouteCreationResults(data) {
                     route.complete_route_addresses.forEach(addr => {
                         const isStartingPoint = addr.sequence_no === 0;
                         const isEndingPoint = addr.sequence_no === route.complete_route_addresses.length - 1;
+
+                        console.log('Starting point:', isStartingPoint, 'Ending point:', isEndingPoint);
                         
                         let listItemClass = '';
                         let badge = '';
