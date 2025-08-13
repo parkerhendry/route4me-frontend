@@ -2489,7 +2489,6 @@ function showAddDriverForm() {
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
     hideCard('jobTypesCard');
-    hideCard('fileInfo');
     
     // Hide step indicator and main container
     const stepIndicator = document.querySelector('.step-indicator');
@@ -2671,7 +2670,6 @@ function showAddDriverResults(data) {
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
     hideCard('jobTypesCard');
-    hideCard('fileInfo');
     
     // Re-render the driver list to reflect the new driver
     validateUser();
@@ -3413,7 +3411,6 @@ function showEditDriverResults(data) {
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
     hideCard('jobTypesCard');
-    hideCard('fileInfo');
     
     // Re-render the driver list to reflect the updated information
     validateUser();
@@ -3621,7 +3618,6 @@ async function deleteDriver(driverEmail) {
             hideCard('addressUploadCard');
             hideCard('routeCreationCard');
             hideCard('jobTypesCard');
-            hideCard('fileInfo');
             validateUser(); // This will refresh the driver list
         } else {
             showAlert(data.error || 'Failed to delete driver', 'danger');
