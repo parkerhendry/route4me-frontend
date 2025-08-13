@@ -443,20 +443,40 @@ async function validateUserWithEmail(email) {
  * Reset application to initial state
  */
 function resetApplication() {
+    // Reset all state variables
     currentUser = null;
     subDrivers = [];
     selectedDrivers = [];
     uploadedAddresses = [];
     currentStep = 1;
+    currentJobTypes = [];
+    currentMap = null;
+    currentMarker = null;
+    currentAddressIndex = null;
     
-    // Reset UI
+    // Clear stored window variables
+    window.validAddresses = null;
+    window.invalidAddresses = null;
+    window.manualCoordinates = {};
+    window.currentEmailResolve = null;
+    window.currentEmailReject = null;
+    
+    // Reset UI elements
     updateStepIndicator(1);
-    showCard('userValidationCard');
+    
+    // Hide all cards
+    hideCard('userValidationCard');
     hideCard('driverSelectionCard');
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    hideCard('jobTypesCard');
+    hideCard('locationAdjustmentCard');
     
-    // Reset file input
+    // Show only the user validation card
+    showCard('userValidationCard');
+    
+    // Reset file input if it exists
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
         fileInput.value = '';
@@ -466,6 +486,43 @@ function resetApplication() {
     const alertContainer = document.getElementById('alertContainer');
     if (alertContainer) {
         alertContainer.innerHTML = '';
+    }
+    
+    // Reset any form inputs
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => form.reset());
+    
+    // Clear any results containers
+    const resultsContainers = [
+        'addDriverResults',
+        'jobTypesResults',
+        'routeCreationResults',
+        'fileInfo'
+    ];
+    
+    resultsContainers.forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+        }
+    });
+    
+    // Show step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'flex';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
+    }
+    
+    // Reset any dynamic content areas
+    const userValidationContent = document.getElementById('userValidationContent');
+    if (userValidationContent) {
+        userValidationContent.innerHTML = ''; // Will be populated by validation process
     }
 }
 
@@ -2376,8 +2433,19 @@ function addAdditionalStyles() {
 }
 
 function initializeAppWithStyles() {
+    // First add the styles
     addAdditionalStyles();
-    initializeApp();
+    
+    // Then do a complete reset
+    resetApplication();
+    
+    // Finally initialize the app
+    if (isGeotabEnvironment) {
+        validateUser();
+    } else {
+        console.log('Not in Geotab environment, starting email validation...');
+        startEmailValidation();
+    }
 }
 
 /**
