@@ -936,26 +936,25 @@ function proceedToAddressUpload() {
     setupFileUpload();
 }
 
-/**
- * Setup file upload functionality
- */
 function setupFileUpload() {
     const fileUploadArea = document.getElementById('fileUploadArea');
     const fileInput = document.getElementById('fileInput');
     
     if (!fileUploadArea || !fileInput) return;
     
-    // Remove existing event listeners first
+    // First remove all existing event listeners by cloning the elements
     const newFileUploadArea = fileUploadArea.cloneNode(true);
     const newFileInput = fileInput.cloneNode(true);
     
     fileUploadArea.parentNode.replaceChild(newFileUploadArea, fileUploadArea);
     fileInput.parentNode.replaceChild(newFileInput, fileInput);
     
-    // Click to browse
+    // Click to browse - without the once option
     newFileUploadArea.addEventListener('click', () => {
+        // Reset the file input to ensure change event fires
+        newFileInput.value = '';
         newFileInput.click();
-    }, { once: true }); // Use once: true to ensure the listener only fires once
+    });
     
     // Drag and drop
     newFileUploadArea.addEventListener('dragover', (e) => {
@@ -977,13 +976,13 @@ function setupFileUpload() {
         }
     });
     
-    // File input change
+    // File input change - without the once option
     newFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
             handleFileUpload(file);
         }
-    }, { once: true }); // Use once: true to ensure the listener only fires once
+    });
 }
 
 /**
