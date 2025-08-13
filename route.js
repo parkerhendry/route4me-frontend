@@ -2663,6 +2663,13 @@ function showAddDriverResults(data) {
     
     // Go back to driver selection
     cancelAddDriver();
+
+    // Hide ALL cards and step indicator
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('jobTypesCard');
     
     // Re-render the driver list to reflect the new driver
     validateUser();
@@ -3398,6 +3405,12 @@ function showEditDriverResults(data) {
     
     // Go back to driver selection
     cancelAddDriver();
+
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('jobTypesCard');
     
     // Re-render the driver list to reflect the updated information
     validateUser();
@@ -3600,6 +3613,11 @@ async function deleteDriver(driverEmail) {
             // Reset form to default state and return to driver selection
             resetAddDriverFormToDefault();
             cancelAddDriver();
+            hideCard('userValidationCard');
+            hideCard('driverSelectionCard');
+            hideCard('addressUploadCard');
+            hideCard('routeCreationCard');
+            hideCard('jobTypesCard');
             validateUser(); // This will refresh the driver list
         } else {
             showAlert(data.error || 'Failed to delete driver', 'danger');
