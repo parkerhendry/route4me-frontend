@@ -945,24 +945,31 @@ function setupFileUpload() {
     
     if (!fileUploadArea || !fileInput) return;
     
+    // Remove existing event listeners first
+    const newFileUploadArea = fileUploadArea.cloneNode(true);
+    const newFileInput = fileInput.cloneNode(true);
+    
+    fileUploadArea.parentNode.replaceChild(newFileUploadArea, fileUploadArea);
+    fileInput.parentNode.replaceChild(newFileInput, fileInput);
+    
     // Click to browse
-    fileUploadArea.addEventListener('click', () => {
-        fileInput.click();
-    });
+    newFileUploadArea.addEventListener('click', () => {
+        newFileInput.click();
+    }, { once: true }); // Use once: true to ensure the listener only fires once
     
     // Drag and drop
-    fileUploadArea.addEventListener('dragover', (e) => {
+    newFileUploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
-        fileUploadArea.classList.add('drag-over');
+        newFileUploadArea.classList.add('drag-over');
     });
     
-    fileUploadArea.addEventListener('dragleave', () => {
-        fileUploadArea.classList.remove('drag-over');
+    newFileUploadArea.addEventListener('dragleave', () => {
+        newFileUploadArea.classList.remove('drag-over');
     });
     
-    fileUploadArea.addEventListener('drop', (e) => {
+    newFileUploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
-        fileUploadArea.classList.remove('drag-over');
+        newFileUploadArea.classList.remove('drag-over');
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
@@ -971,12 +978,12 @@ function setupFileUpload() {
     });
     
     // File input change
-    fileInput.addEventListener('change', (e) => {
+    newFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
             handleFileUpload(file);
         }
-    });
+    }, { once: true }); // Use once: true to ensure the listener only fires once
 }
 
 /**
