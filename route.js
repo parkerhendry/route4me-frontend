@@ -905,11 +905,34 @@ function proceedToAddressUpload() {
         return;
     }
     
+    // Reset UI elements first
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard'); 
+    hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    hideCard('jobTypesCard');
+    hideCard('locationAdjustmentCard');
+
+    // Update step and indicator
     currentStep = 3;
     updateStepIndicator(3);
-    hideCard('driverSelectionCard');
+    
+    // Show address upload card
     showCard('addressUploadCard');
     
+    // Make sure file upload area is visible
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    if (fileUploadArea) {
+        fileUploadArea.style.display = 'block';
+    }
+
+    // Reset any previous file info
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.classList.add('hidden');
+    }
+
+    // Setup file upload functionality
     setupFileUpload();
 }
 
