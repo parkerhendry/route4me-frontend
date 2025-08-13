@@ -332,6 +332,66 @@
     border-left-color: var(--primary-blue);
 }
 
+/* Header button enhancements */
+.header-buttons .btn {
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.header-buttons .btn-success {
+    background: var(--blue-gradient);
+    border: none;
+    color: white;
+}
+
+.header-buttons .btn-success:hover {
+    background: var(--dark-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+}
+
+.header-buttons .btn-outline-primary {
+    background: var(--orange-gradient);
+    border: none;
+    color: white;
+}
+
+.header-buttons .btn-outline-primary:hover {
+    background: var(--dark-orange);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+/* Driver selection card header buttons */
+.card-header .btn-outline-primary {
+    background: var(--orange-gradient);
+    border: none;
+    color: white;
+    font-weight: 600;
+}
+
+.card-header .btn-outline-primary:hover {
+    background: var(--dark-orange);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+.card-header .btn-outline-secondary {
+    background: var(--blue-gradient);
+    border: none;
+    color: white;
+    font-weight: 600;
+}
+
+.card-header .btn-outline-secondary:hover {
+    background: var(--dark-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .header-title {
