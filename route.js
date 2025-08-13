@@ -3444,22 +3444,49 @@ async function handleEditDriverSubmit(originalEmail) {
         types: selectedJobTypes
     };
     
-    // Validate required fields (password is optional for editing)
-    if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.hq || !formData.home || !formData.max_destinations) {
-        showAlert('Please fill in all required fields', 'danger');
-        return;
+    // Validate all fields
+    let errors = [];
+    
+    // Email validation (email field is disabled during edit, but validate anyway)
+    if (!formData.member_email) {
+        errors.push('Email address is required');
+    } else if (!isValidEmail(formData.member_email)) {
+        errors.push('Please enter a valid email address');
     }
     
-    // Validate max destinations is a positive number
-    if (formData.max_destinations <= 0) {
-        showAlert('Max destinations must be a positive number', 'danger');
-        return;
+    // Other required fields (password is optional for editing)
+    if (!formData.member_first_name) errors.push('First name is required');
+    if (!formData.member_last_name) errors.push('Last name is required');
+    if (!formData.hq) errors.push('HQ address is required');
+    if (!formData.home) errors.push('Home address is required');
+    
+    // Max destinations validation
+    if (isNaN(formData.max_destinations) || formData.max_destinations <= 0) {
+        errors.push('Max destinations must be a positive number');
     }
     
-    // Validate job types selection
-    if (selectedJobTypes.length === 0) {
-        showAlert('Please select at least one service type', 'danger');
+    // Job types validation
+    if (formData.types.length === 0) {
+        errors.push('Please select at least one service type');
+    }
+    
+    // If there are validation errors, display them and return
+    if (errors.length > 0) {
+        const resultsDiv = document.getElementById('addDriverResults');
+        if (resultsDiv) {
+            resultsDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Please correct the following:</h6>
+                    <ul class="mb-0">
+                        ${errors.map(error => `<li>${error}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+            resultsDiv.classList.remove('hidden');
+            
+            // Scroll to errors
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         return;
     }
     
