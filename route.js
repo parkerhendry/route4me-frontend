@@ -951,8 +951,6 @@ function setupFileUpload() {
     
     // Click to browse - without the once option
     newFileUploadArea.addEventListener('click', () => {
-        e.preventDefault();  // Prevent default click behavior
-        e.stopPropagation(); // Stop event propagation
         // Reset the file input to ensure change event fires
         newFileInput.value = '';
         newFileInput.click();
