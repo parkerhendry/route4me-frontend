@@ -318,6 +318,7 @@ async function verifyCode(email, code, resolve, reject) {
         if (!response.ok) {
             if (response.status === 400) {
                 showVerificationCodeError('Invalid or expired verification code');
+                console.error('Invalid or expired verification code:', data);
                 return;
             }
             throw new Error(data.error || 'Verification failed');
