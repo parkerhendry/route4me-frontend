@@ -2829,7 +2829,7 @@ function showAddDriverResults(data) {
         validateUser();
     }
     else {
-        validateUserWithEmail();
+        validateUserWithEmail(currentUser.member_email);
     }
 }
 
@@ -3602,7 +3602,7 @@ function showEditDriverResults(data) {
         validateUser();
     }
     else {
-        validateUserWithEmail();
+        validateUserWithEmail(currentUser.member_email);
     }
 }
 
@@ -3812,7 +3812,7 @@ async function deleteDriver(driverEmail) {
                 validateUser();
             }
             else {
-                validateUserWithEmail();
+                validateUserWithEmail(currentUser.member_email);
             }
         } else {
             showAlert(data.error || 'Failed to delete driver', 'danger');
