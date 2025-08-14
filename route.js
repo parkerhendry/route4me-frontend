@@ -532,6 +532,7 @@ function resetApplication() {
  */
 async function validateUser() {
     console.log('Validating user credentials...');
+    console.log("Current user:", currentUser);
     
     try {
         const username = await getCurrentUsername();
