@@ -2521,23 +2521,6 @@ function showLoadingInCard(cardId, message) {
     const card = document.getElementById(cardId);
     if (!card) return;
     
-    // Special handling for userValidationCard to preserve the userValidationContent div
-    if (cardId === 'userValidationCard') {
-        const content = document.getElementById('userValidationContent');
-        if (content) {
-            content.innerHTML = `
-                <div class="loading-spinner">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2 mb-0">${message}</p>
-                </div>
-            `;
-            return;
-        }
-    }
-    
-    // Default behavior for other cards
     const content = card.querySelector('.card-body');
     if (content) {
         content.innerHTML = `
