@@ -2825,7 +2825,12 @@ function showAddDriverResults(data) {
     hideCard('jobTypesCard');
     
     // Re-render the driver list to reflect the new driver
-    validateUser();
+    if (isGeotabEnvironment) {
+        validateUser();
+    }
+    else {
+        validateUserWithEmail();
+    }
 }
 
 /**
@@ -3593,7 +3598,12 @@ function showEditDriverResults(data) {
     hideCard('jobTypesCard');
     
     // Re-render the driver list to reflect the updated information
-    validateUser();
+    if (isGeotabEnvironment) {
+        validateUser();
+    }
+    else {
+        validateUserWithEmail();
+    }
 }
 
 /**
@@ -3798,7 +3808,12 @@ async function deleteDriver(driverEmail) {
             hideCard('addressUploadCard');
             hideCard('routeCreationCard');
             hideCard('jobTypesCard');
-            validateUser(); // This will refresh the driver list
+            if (isGeotabEnvironment) {
+                validateUser();
+            }
+            else {
+                validateUserWithEmail();
+            }
         } else {
             showAlert(data.error || 'Failed to delete driver', 'danger');
         }
