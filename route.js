@@ -1252,7 +1252,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                             </p>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Corrected Address (Optional):</label>
+                            <label class="form-label">Enter Corrected Address (Optional):</label>
                             <input type="text" class="form-control corrected-address" 
                                 id="corrected-${filteredIndex}" 
                                 data-original-index="${originalIndex}"
