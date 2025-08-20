@@ -1042,6 +1042,8 @@ async function validateAddresses(addresses, fileName) {
         else {
             username = currentUser.member_email;
         }
+
+        console.log('Validating addresses for user:', username);
         
         
         if (!username) {
