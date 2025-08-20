@@ -799,9 +799,9 @@ function selectAllDrivers() {
                 // Set default location to HQ if not already selected
                 const locationRadios = document.querySelectorAll(`input[name="location-${driverId}"]`);
                 if (locationRadios.length > 0) {
-                    const hqRadio = document.getElementById(`hq-${driverId}`);
-                    if (hqRadio && !document.querySelector(`input[name="location-${driverId}"]:checked`)) {
-                        hqRadio.checked = true;
+                    const homeRadio = document.getElementById(`home-${driverId}`);
+                    if (homeRadio && !document.querySelector(`input[name="location-${driverId}"]:checked`)) {
+                        homeRadio.checked = true;
                     }
                 }
             }
