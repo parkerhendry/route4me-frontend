@@ -708,6 +708,8 @@ function renderDriverList() {
         <div id="driverListContainer">
     `;
     
+    console.log("First subDriver:", subDrivers[0]);
+
     const driversHtml = subDrivers.map(driver => `
         <div class="driver-selection-item card mb-3" data-driver-name="${driver.member_first_name} ${driver.member_last_name}" data-driver-email="${driver.member_email}">
             <div class="card-body">
