@@ -318,6 +318,7 @@ async function verifyCode(email, code, resolve, reject) {
         if (!response.ok) {
             if (response.status === 400) {
                 showVerificationCodeError('Invalid or expired verification code');
+                console.error('Invalid or expired verification code:', data);
                 return;
             }
             throw new Error(data.error || 'Verification failed');
@@ -443,20 +444,40 @@ async function validateUserWithEmail(email) {
  * Reset application to initial state
  */
 function resetApplication() {
+    // Reset all state variables
     currentUser = null;
     subDrivers = [];
     selectedDrivers = [];
     uploadedAddresses = [];
     currentStep = 1;
+    currentJobTypes = [];
+    currentMap = null;
+    currentMarker = null;
+    currentAddressIndex = null;
     
-    // Reset UI
+    // Clear stored window variables
+    window.validAddresses = null;
+    window.invalidAddresses = null;
+    window.manualCoordinates = {};
+    window.currentEmailResolve = null;
+    window.currentEmailReject = null;
+    
+    // Reset UI elements
     updateStepIndicator(1);
-    showCard('userValidationCard');
+    
+    // Hide all cards
+    hideCard('userValidationCard');
     hideCard('driverSelectionCard');
     hideCard('addressUploadCard');
     hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    hideCard('jobTypesCard');
+    hideCard('locationAdjustmentCard');
     
-    // Reset file input
+    // Show only the user validation card
+    showCard('userValidationCard');
+    
+    // Reset file input if it exists
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
         fileInput.value = '';
@@ -467,6 +488,43 @@ function resetApplication() {
     if (alertContainer) {
         alertContainer.innerHTML = '';
     }
+    
+    // Reset any form inputs
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => form.reset());
+    
+    // Clear any results containers
+    const resultsContainers = [
+        'addDriverResults',
+        'jobTypesResults',
+        'routeCreationResults',
+        'fileInfo'
+    ];
+    
+    resultsContainers.forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+        }
+    });
+    
+    // Show step indicator and main container
+    const stepIndicator = document.querySelector('.step-indicator');
+    if (stepIndicator) {
+        stepIndicator.style.display = 'flex';
+    }
+    
+    const mainContainer = document.getElementById('route4meApp');
+    if (mainContainer) {
+        mainContainer.style.display = 'block';
+    }
+    
+    // Reset any dynamic content areas
+    const userValidationContent = document.getElementById('userValidationContent');
+    if (userValidationContent) {
+        userValidationContent.innerHTML = ''; // Will be populated by validation process
+    }
 }
 
 /**
@@ -474,6 +532,7 @@ function resetApplication() {
  */
 async function validateUser() {
     console.log('Validating user credentials...');
+    console.log("Current user:", currentUser);
     
     try {
         const username = await getCurrentUsername();
@@ -649,6 +708,8 @@ function renderDriverList() {
         <div id="driverListContainer">
     `;
     
+    console.log("First subDriver:", subDrivers[0]);
+
     const driversHtml = subDrivers.map(driver => `
         <div class="driver-selection-item card mb-3" data-driver-name="${driver.member_first_name} ${driver.member_last_name}" data-driver-email="${driver.member_email}">
             <div class="card-body">
@@ -689,7 +750,7 @@ function renderDriverList() {
                     </div>
                     <div class="col-md-4 text-end">
                         <button class="btn btn-outline-secondary btn-sm" onclick="showEditDriverForm('${driver.member_email}')">
-                            <i class="fas fa-edit me-1"></i>Edit!!!
+                            <i class="fas fa-edit me-1"></i>Edit
                         </button>
                     </div>
                 </div>
@@ -740,9 +801,9 @@ function selectAllDrivers() {
                 // Set default location to HQ if not already selected
                 const locationRadios = document.querySelectorAll(`input[name="location-${driverId}"]`);
                 if (locationRadios.length > 0) {
-                    const hqRadio = document.getElementById(`hq-${driverId}`);
-                    if (hqRadio && !document.querySelector(`input[name="location-${driverId}"]:checked`)) {
-                        hqRadio.checked = true;
+                    const homeRadio = document.getElementById(`home-${driverId}`);
+                    if (homeRadio && !document.querySelector(`input[name="location-${driverId}"]:checked`)) {
+                        homeRadio.checked = true;
                     }
                 }
             }
@@ -848,41 +909,70 @@ function proceedToAddressUpload() {
         return;
     }
     
+    // Reset UI elements first
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard'); 
+    hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    hideCard('jobTypesCard');
+    hideCard('locationAdjustmentCard');
+
+    // Update step and indicator
     currentStep = 3;
     updateStepIndicator(3);
-    hideCard('driverSelectionCard');
+    
+    // Show address upload card
     showCard('addressUploadCard');
     
+    // Make sure file upload area is visible
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    if (fileUploadArea) {
+        fileUploadArea.style.display = 'block';
+    }
+
+    // Reset any previous file info
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.classList.add('hidden');
+    }
+
+    // Setup file upload functionality
     setupFileUpload();
 }
 
-/**
- * Setup file upload functionality
- */
 function setupFileUpload() {
     const fileUploadArea = document.getElementById('fileUploadArea');
     const fileInput = document.getElementById('fileInput');
     
     if (!fileUploadArea || !fileInput) return;
     
-    // Click to browse
-    fileUploadArea.addEventListener('click', () => {
-        fileInput.click();
+    // First remove all existing event listeners by cloning the elements
+    const newFileUploadArea = fileUploadArea.cloneNode(true);
+    const newFileInput = fileInput.cloneNode(true);
+    
+    fileUploadArea.parentNode.replaceChild(newFileUploadArea, fileUploadArea);
+    fileInput.parentNode.replaceChild(newFileInput, fileInput);
+    
+    // Click to browse - without the once option
+    newFileUploadArea.addEventListener('click', () => {
+        // Reset the file input to ensure change event fires
+        newFileInput.value = '';
+        newFileInput.click();
     });
     
     // Drag and drop
-    fileUploadArea.addEventListener('dragover', (e) => {
+    newFileUploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
-        fileUploadArea.classList.add('drag-over');
+        newFileUploadArea.classList.add('drag-over');
     });
     
-    fileUploadArea.addEventListener('dragleave', () => {
-        fileUploadArea.classList.remove('drag-over');
+    newFileUploadArea.addEventListener('dragleave', () => {
+        newFileUploadArea.classList.remove('drag-over');
     });
     
-    fileUploadArea.addEventListener('drop', (e) => {
+    newFileUploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
-        fileUploadArea.classList.remove('drag-over');
+        newFileUploadArea.classList.remove('drag-over');
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
@@ -890,8 +980,8 @@ function setupFileUpload() {
         }
     });
     
-    // File input change
-    fileInput.addEventListener('change', (e) => {
+    // File input change - without the once option
+    newFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
             handleFileUpload(file);
@@ -1164,7 +1254,7 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                             </p>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Corrected Address (Optional):</label>
+                            <label class="form-label">Enter Corrected Address (Optional):</label>
                             <input type="text" class="form-control corrected-address" 
                                 id="corrected-${filteredIndex}" 
                                 data-original-index="${originalIndex}"
@@ -2236,6 +2326,24 @@ function showRouteCreationResults(data) {
         </div>
     `;
     
+    // Show reassignment messages if any
+    if (data.reassignment_messages && data.reassignment_messages.length > 0) {
+        resultsHtml += `
+            <div class="alert alert-warning mb-3">
+                <h6><i class="fas fa-exchange-alt me-2"></i>Route Reassignments</h6>
+                <div class="reassignment-messages">
+        `;
+        
+        data.reassignment_messages.forEach(message => {
+            resultsHtml += `<p class="mb-1"><i class="fas fa-info-circle me-1"></i>${message}</p>`;
+        });
+        
+        resultsHtml += `
+                </div>
+            </div>
+        `;
+    }
+    
     // Show individual route results
     if (data.created_routes && data.created_routes.length > 0) {
         resultsHtml += '<div class="route-results">';
@@ -2255,25 +2363,40 @@ function showRouteCreationResults(data) {
                             </p>
                 `;
                 
-                // Add route addresses if available
-                if (route.route_addresses && route.route_addresses.length > 0) {
+                // Add route addresses if available - use complete route for display
+                if (route.complete_route_addresses && route.complete_route_addresses.length > 0) {
                     resultsHtml += `
                         <div class="mt-3">
-                            <h6 class="mb-2"><i class="fas fa-list me-2"></i>Route Addresses (in order):</h6>
+                            <h6 class="mb-2"><i class="fas fa-list me-2"></i>Complete Route (in order):</h6>
                             <div class="route-addresses" style="max-height: 300px; overflow-y: auto;">
                                 <ol class="list-group list-group-numbered">
                     `;
                     
-                    route.route_addresses.forEach(addr => {
-                        const isStartingPoint = addr.sequence_no === 0;
-                        const listItemClass = isStartingPoint ? 'list-group-item-info' : '';
-                        const startingPointBadge = isStartingPoint ? '<span class="badge bg-info ms-2">Starting Point</span>' : '';
+                    // Sort addresses by sequence number to ensure proper order
+                    const sortedAddresses = [...route.complete_route_addresses].sort((a, b) => a.sequence_no - b.sequence_no);
+                    
+                    sortedAddresses.forEach((addr, index) => {
+                        const isStartingPoint = index === 0;
+                        const isEndingPoint = index === sortedAddresses.length - 1;
+
+                        console.log('Address:', addr.address, 'Index:', index, 'Starting point:', isStartingPoint, 'Ending point:', isEndingPoint);
+                        
+                        let listItemClass = '';
+                        let badge = '';
+                        
+                        if (isStartingPoint) {
+                            listItemClass = 'list-group-item-success';
+                            badge = '<span class="badge bg-success ms-2">Starting Point</span>';
+                        } else if (isEndingPoint) {
+                            listItemClass = 'list-group-item-success';
+                            badge = '<span class="badge bg-success ms-2">Ending Point</span>';
+                        }
                         
                         resultsHtml += `
                             <li class="list-group-item ${listItemClass}">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div>
-                                        <strong>${addr.address}</strong>${startingPointBadge}
+                                        <strong>${addr.address}</strong>${badge}
                                         ${addr.alias ? `<br><small class="text-muted">${addr.alias}</small>` : ''}
                                     </div>
                                 </div>
@@ -2343,8 +2466,19 @@ function addAdditionalStyles() {
 }
 
 function initializeAppWithStyles() {
+    // First add the styles
     addAdditionalStyles();
-    initializeApp();
+    
+    // Then do a complete reset
+    resetApplication();
+    
+    // Finally initialize the app
+    if (isGeotabEnvironment) {
+        validateUser();
+    } else {
+        console.log('Not in Geotab environment, starting email validation...');
+        startEmailValidation();
+    }
 }
 
 /**
@@ -2390,6 +2524,23 @@ function showLoadingInCard(cardId, message) {
     const card = document.getElementById(cardId);
     if (!card) return;
     
+    // Special handling for userValidationCard to preserve the userValidationContent div
+    if (cardId === 'userValidationCard') {
+        const content = document.getElementById('userValidationContent');
+        if (content) {
+            content.innerHTML = `
+                <div class="loading-spinner">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">${message}</p>
+                </div>
+            `;
+            return;
+        }
+    }
+    
+    // Default behavior for other cards
     const content = card.querySelector('.card-body');
     if (content) {
         content.innerHTML = `
@@ -2518,6 +2669,15 @@ function cancelAddDriver() {
 }
 
 /**
+ * Validate email format
+ */
+function isValidEmail(email) {
+    // Basic email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+/**
  * Handle add driver form submission (modified to use selected job types)
  */
 async function handleAddDriverSubmit() {
@@ -2539,22 +2699,50 @@ async function handleAddDriverSubmit() {
         types: selectedJobTypes
     };
     
-    // Validate required fields
-    if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.password || !formData.hq || !formData.home || !formData.max_destinations) {
-        showAlert('Please fill in all required fields', 'danger');
-        return;
+    // Validate all fields
+    let errors = [];
+    
+    // Email validation
+    if (!formData.member_email) {
+        errors.push('Email address is required');
+    } else if (!isValidEmail(formData.member_email)) {
+        errors.push('Please enter a valid email address');
     }
     
-    // Validate max destinations is a positive number
-    if (formData.max_destinations <= 0) {
-        showAlert('Max destinations must be a positive number', 'danger');
-        return;
+    // Other required fields
+    if (!formData.member_first_name) errors.push('First name is required');
+    if (!formData.member_last_name) errors.push('Last name is required');
+    if (!formData.password) errors.push('Password is required');
+    if (!formData.hq) errors.push('HQ address is required');
+    if (!formData.home) errors.push('Home address is required');
+    
+    // Max destinations validation
+    if (isNaN(formData.max_destinations) || formData.max_destinations <= 0) {
+        errors.push('Max destinations must be a positive number');
     }
     
-    // Validate job types selection
-    if (selectedJobTypes.length === 0) {
-        showAlert('Please select at least one service type', 'danger');
+    // Job types validation
+    if (formData.types.length === 0) {
+        errors.push('Please select at least one service type');
+    }
+    
+    // If there are validation errors, display them and return
+    if (errors.length > 0) {
+        const resultsDiv = document.getElementById('addDriverResults');
+        if (resultsDiv) {
+            resultsDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Please correct the following:</h6>
+                    <ul class="mb-0">
+                        ${errors.map(error => `<li>${error}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+            resultsDiv.classList.remove('hidden');
+            
+            // Scroll to errors
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         return;
     }
     
@@ -2630,9 +2818,21 @@ function showAddDriverResults(data) {
     
     // Go back to driver selection
     cancelAddDriver();
+
+    // Hide ALL cards and step indicator
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('jobTypesCard');
     
     // Re-render the driver list to reflect the new driver
-    validateUser();
+    if (isGeotabEnvironment) {
+        validateUser();
+    }
+    else {
+        validateUserWithEmail(currentUser.member_email);
+    }
 }
 
 /**
@@ -3269,22 +3469,49 @@ async function handleEditDriverSubmit(originalEmail) {
         types: selectedJobTypes
     };
     
-    // Validate required fields (password is optional for editing)
-    if (!formData.member_email || !formData.member_first_name || !formData.member_last_name || 
-        !formData.hq || !formData.home || !formData.max_destinations) {
-        showAlert('Please fill in all required fields', 'danger');
-        return;
+    // Validate all fields
+    let errors = [];
+    
+    // Email validation (email field is disabled during edit, but validate anyway)
+    if (!formData.member_email) {
+        errors.push('Email address is required');
+    } else if (!isValidEmail(formData.member_email)) {
+        errors.push('Please enter a valid email address');
     }
     
-    // Validate max destinations is a positive number
-    if (formData.max_destinations <= 0) {
-        showAlert('Max destinations must be a positive number', 'danger');
-        return;
+    // Other required fields (password is optional for editing)
+    if (!formData.member_first_name) errors.push('First name is required');
+    if (!formData.member_last_name) errors.push('Last name is required');
+    if (!formData.hq) errors.push('HQ address is required');
+    if (!formData.home) errors.push('Home address is required');
+    
+    // Max destinations validation
+    if (isNaN(formData.max_destinations) || formData.max_destinations <= 0) {
+        errors.push('Max destinations must be a positive number');
     }
     
-    // Validate job types selection
-    if (selectedJobTypes.length === 0) {
-        showAlert('Please select at least one service type', 'danger');
+    // Job types validation
+    if (formData.types.length === 0) {
+        errors.push('Please select at least one service type');
+    }
+    
+    // If there are validation errors, display them and return
+    if (errors.length > 0) {
+        const resultsDiv = document.getElementById('addDriverResults');
+        if (resultsDiv) {
+            resultsDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Please correct the following:</h6>
+                    <ul class="mb-0">
+                        ${errors.map(error => `<li>${error}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+            resultsDiv.classList.remove('hidden');
+            
+            // Scroll to errors
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         return;
     }
     
@@ -3365,9 +3592,20 @@ function showEditDriverResults(data) {
     
     // Go back to driver selection
     cancelAddDriver();
+
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard');
+    hideCard('addressUploadCard');
+    hideCard('routeCreationCard');
+    hideCard('jobTypesCard');
     
     // Re-render the driver list to reflect the updated information
-    validateUser();
+    if (isGeotabEnvironment) {
+        validateUser();
+    }
+    else {
+        validateUserWithEmail(currentUser.member_email);
+    }
 }
 
 /**
@@ -3567,7 +3805,17 @@ async function deleteDriver(driverEmail) {
             // Reset form to default state and return to driver selection
             resetAddDriverFormToDefault();
             cancelAddDriver();
-            validateUser(); // This will refresh the driver list
+            hideCard('userValidationCard');
+            hideCard('driverSelectionCard');
+            hideCard('addressUploadCard');
+            hideCard('routeCreationCard');
+            hideCard('jobTypesCard');
+            if (isGeotabEnvironment) {
+                validateUser();
+            }
+            else {
+                validateUserWithEmail(currentUser.member_email);
+            }
         } else {
             showAlert(data.error || 'Failed to delete driver', 'danger');
         }
