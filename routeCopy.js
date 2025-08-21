@@ -672,16 +672,36 @@ function renderDriverList() {
         return;
     }
     
-    // Add search bar and select all controls
-    const searchHtml = `
-        <div class="driver-search mb-3">
-            <div class="input-group">
-                <span class="input-group-text">
-                    <i class="fas fa-search"></i>
-                </span>
-                <input type="text" class="form-control" id="driverSearch" 
-                    placeholder="Search drivers by name or email..." 
-                    onkeyup="filterDrivers()">
+    // Get unique locations for filters
+    const allHqLocations = [...new Set(subDrivers.map(d => d.hq).filter(hq => hq))];
+    const allHomeLocations = [...new Set(subDrivers.map(d => d.home).filter(home => home))];
+    
+    // Add search bar, location filters, and select all controls
+    const filtersHtml = `
+        <div class="driver-search-filters mb-3">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="driverSearch" 
+                            placeholder="Search drivers by name or email..." 
+                            onkeyup="filterDrivers()">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select" id="hqFilter" onchange="filterDrivers()">
+                        <option value="">All HQ Locations</option>
+                        ${allHqLocations.map(hq => `<option value="${hq}">${hq}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select" id="homeFilter" onchange="filterDrivers()">
+                        <option value="">All Home Locations</option>
+                        ${allHomeLocations.map(home => `<option value="${home}">${home}</option>`).join('')}
+                    </select>
+                </div>
             </div>
         </div>
         <div class="driver-controls mb-3">
@@ -693,6 +713,9 @@ function renderDriverList() {
                         </button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="deselectAllDrivers()">
                             <i class="fas fa-square me-2"></i>Deselect All
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="clearFilters()">
+                            <i class="fas fa-filter me-2"></i>Clear Filters
                         </button>
                     </div>
                 </div>
@@ -711,7 +734,11 @@ function renderDriverList() {
     console.log("First subDriver:", subDrivers[0]);
 
     const driversHtml = subDrivers.map(driver => `
-        <div class="driver-selection-item card mb-3" data-driver-name="${driver.member_first_name} ${driver.member_last_name}" data-driver-email="${driver.member_email}">
+        <div class="driver-selection-item card mb-3" 
+             data-driver-name="${driver.member_first_name} ${driver.member_last_name}" 
+             data-driver-email="${driver.member_email}"
+             data-driver-hq="${driver.hq || ''}"
+             data-driver-home="${driver.home || ''}">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-4">
@@ -724,6 +751,21 @@ function renderDriverList() {
                                     <div class="text-muted mt-1">
                                         <i class="fas fa-envelope me-1"></i>${driver.member_email}
                                     </div>
+                                    ${driver.hq ? `
+                                        <div class="text-muted mt-1">
+                                            <i class="fas fa-building me-1"></i><small>HQ: ${driver.hq}</small>
+                                        </div>
+                                    ` : ''}
+                                    ${driver.home ? `
+                                        <div class="text-muted mt-1">
+                                            <i class="fas fa-home me-1"></i><small>Home: ${driver.home}</small>
+                                        </div>
+                                    ` : ''}
+                                    ${driver.types && driver.types.length > 0 ? `
+                                        <div class="text-muted mt-1">
+                                            <i class="fas fa-tags me-1"></i><small>${driver.types.length} job types</small>
+                                        </div>
+                                    ` : ''}
                                 </div>
                             </label>
                         </div>
@@ -735,15 +777,19 @@ function renderDriverList() {
                             </label>
                             <div class="btn-group w-100" role="group">
                                 <input type="radio" class="btn-check" name="location-${driver.member_id}" 
-                                    value="hq" id="hq-${driver.member_id}" onchange="updateDriverSelection()">
-                                <label class="btn btn-outline-primary" for="hq-${driver.member_id}">
-                                    <i class="fas fa-building me-2"></i>HQ
+                                    value="hq" id="hq-${driver.member_id}" onchange="updateDriverSelection()"
+                                    ${!driver.hq ? 'disabled' : ''}>
+                                <label class="btn ${driver.hq ? 'btn-outline-primary' : 'btn-outline-secondary'}" 
+                                    for="hq-${driver.member_id}" ${!driver.hq ? 'title="No HQ address configured"' : ''}>
+                                    <i class="fas fa-building me-2"></i>HQ ${!driver.hq ? '(N/A)' : ''}
                                 </label>
                                 
                                 <input type="radio" class="btn-check" name="location-${driver.member_id}" 
-                                    value="home" id="home-${driver.member_id}" onchange="updateDriverSelection()">
-                                <label class="btn btn-outline-primary" for="home-${driver.member_id}">
-                                    <i class="fas fa-home me-2"></i>Home
+                                    value="home" id="home-${driver.member_id}" onchange="updateDriverSelection()"
+                                    ${!driver.home ? 'disabled' : ''}>
+                                <label class="btn ${driver.home ? 'btn-outline-primary' : 'btn-outline-secondary'}" 
+                                    for="home-${driver.member_id}" ${!driver.home ? 'title="No home address configured"' : ''}>
+                                    <i class="fas fa-home me-2"></i>Home ${!driver.home ? '(N/A)' : ''}
                                 </label>
                             </div>
                         </div>
@@ -758,7 +804,7 @@ function renderDriverList() {
         </div>
     `).join('');
     
-    driverList.innerHTML = searchHtml + driversHtml + '</div>';
+    driverList.innerHTML = filtersHtml + driversHtml + '</div>';
     
     // Update the total count
     updateDriverCounts();
@@ -767,13 +813,21 @@ function renderDriverList() {
 // Move these functions to global scope so they can be called from HTML onclick handlers
 function filterDrivers() {
     const searchTerm = document.getElementById('driverSearch').value.toLowerCase();
+    const hqFilter = document.getElementById('hqFilter').value;
+    const homeFilter = document.getElementById('homeFilter').value;
     const driverItems = document.querySelectorAll('.driver-selection-item');
     
     driverItems.forEach(item => {
         const driverName = item.getAttribute('data-driver-name').toLowerCase();
         const driverEmail = item.getAttribute('data-driver-email').toLowerCase();
+        const driverHq = item.getAttribute('data-driver-hq');
+        const driverHome = item.getAttribute('data-driver-home');
         
-        if (driverName.includes(searchTerm) || driverEmail.includes(searchTerm)) {
+        const matchesSearch = driverName.includes(searchTerm) || driverEmail.includes(searchTerm);
+        const matchesHq = !hqFilter || driverHq === hqFilter;
+        const matchesHome = !homeFilter || driverHome === homeFilter;
+        
+        if (matchesSearch && matchesHq && matchesHome) {
             item.style.display = 'block';
         } else {
             item.style.display = 'none';
@@ -782,6 +836,13 @@ function filterDrivers() {
     
     // Update counts after filtering
     updateDriverCounts();
+}
+
+function clearFilters() {
+    document.getElementById('driverSearch').value = '';
+    document.getElementById('hqFilter').value = '';
+    document.getElementById('homeFilter').value = '';
+    filterDrivers();
 }
 
 function selectAllDrivers() {
