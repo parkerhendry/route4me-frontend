@@ -1379,26 +1379,45 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
             left: 0;
             right: 0;
             background: white;
-            border: 1px solid #ddd;
-            border-top: none;
+            border: 1px solid #ced4da;
+            border-radius: 0.375rem;
             max-height: 200px;
             overflow-y: auto;
             z-index: 1000;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            margin-top: 1px;
         }
         
         .zone-option {
-            padding: 8px 12px;
+            padding: 0.75rem 1rem;
             cursor: pointer;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #f8f9fa;
+            transition: background-color 0.15s ease-in-out;
+            color: #212529;
         }
         
         .zone-option:hover {
-            background-color: #f8f9fa;
+            background-color: #e9ecef;
+        }
+        
+        .zone-option:active {
+            background-color: #dee2e6;
         }
         
         .zone-option:last-child {
             border-bottom: none;
+        }
+        
+        .zone-option strong {
+            color: #495057;
+        }
+        
+        .zone-option small {
+            font-size: 0.875em;
+        }
+        
+        .corrected-address:focus + .zone-dropdown {
+            border-color: #86b7fe;
         }
         </style>
     `;
@@ -1439,19 +1458,41 @@ function setupZoneAutocomplete(filteredIndex) {
         ).slice(0, 10); // Limit to 10 results
         
         if (filteredZones.length === 0) {
-            dropdown.style.display = 'none';
+            dropdown.innerHTML = `
+                <div class="zone-option text-muted">
+                    <i class="fas fa-search me-2"></i>No zones found matching "${query}"
+                </div>
+            `;
+            dropdown.style.display = 'block';
             return;
         }
         
         // Populate dropdown
         dropdown.innerHTML = filteredZones.map(zone => `
-            <div class="zone-option" onclick="selectZone('${zone.name}', ${filteredIndex})">
-                <strong>${zone.name}</strong>
-                ${zone.comment ? `<br><small class="text-muted">${zone.comment}</small>` : ''}
+            <div class="zone-option" onclick="selectZone('${zone.name.replace(/'/g, "\\'")}', ${filteredIndex})">
+                <div>
+                    <strong>${zone.name}</strong>
+                    ${zone.comment ? `<br><small class="text-muted">${zone.comment}</small>` : ''}
+                </div>
             </div>
         `).join('');
         
         dropdown.style.display = 'block';
+    });
+    
+    // Hide dropdown when input loses focus (with small delay for clicking)
+    input.addEventListener('blur', function() {
+        setTimeout(() => {
+            dropdown.style.display = 'none';
+        }, 150);
+    });
+    
+    // Show dropdown when input gains focus (if there's content)
+    input.addEventListener('focus', function() {
+        if (this.value.trim().length >= 2) {
+            // Trigger input event to show relevant results
+            this.dispatchEvent(new Event('input'));
+        }
     });
     
     // Hide dropdown when clicking outside
@@ -1471,6 +1512,7 @@ function selectZone(zoneName, filteredIndex) {
     
     if (input) {
         input.value = zoneName;
+        input.focus(); // Keep focus on input
     }
     
     if (dropdown) {
