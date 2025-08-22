@@ -27,21 +27,41 @@ const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
  */
 function getCurrentUsername() { 
     return new Promise((resolve, reject) => { 
-        if (isGeotabEnvironment && api && api.getSession) { 
-            // Inside Geotab - try to get session
-            api.getSession(function(session) { 
-                console.log('session:', session); 
-                if (session && session.userName) { 
-                    resolve(session.userName); 
-                } else { 
-                    // Session exists but no username - prompt for email
-                    promptForEmailValidation().then(resolve).catch(reject); 
-                } 
-            }); 
-        } else { 
-            // Outside Geotab - prompt for email
-            promptForEmailValidation().then(resolve).catch(reject); 
-        } 
+        api.getSession(function(session) { 
+            console.log('session:', session); 
+            if (session && session.userName) { 
+                resolve(session.userName); 
+            } else { 
+                // Session exists but no username - prompt for email
+                promptForEmailValidation().then(resolve).catch(reject); 
+            } 
+        }); 
+    }); 
+}
+
+function getSessionId() { 
+    return new Promise((resolve, reject) => { 
+        api.getSession(function(session) { 
+            console.log('session:', session); 
+            if (session && session.sessionId) { 
+                resolve(session.sessionId); 
+            } else { 
+                reject(new Error('Session ID not available')); 
+            } 
+        }); 
+    }); 
+}
+
+function getDatabaseName() { 
+    return new Promise((resolve, reject) => { 
+        api.getSession(function(session) { 
+            console.log('session:', session); 
+            if (session && session.database) { 
+                resolve(session.database); 
+            } else { 
+                reject(new Error('Database name not available')); 
+            } 
+        }); 
     }); 
 }
 
@@ -1099,12 +1119,18 @@ async function validateAddresses(addresses, fileName) {
     try {
 
         let username;
+        let sessionID;
+        let database;
 
         if (isGeotabEnvironment) {
             username = await getCurrentUsername();
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
         }
         else {
             username = currentUser.member_email;
+            sessionID = null;
+            database = null;
         }
         
         
@@ -1123,7 +1149,9 @@ async function validateAddresses(addresses, fileName) {
             },
             body: JSON.stringify({
                 username: username,
-                addresses: addresses
+                addresses: addresses,
+                session_id: sessionID,
+                database: database
             })
         });
         
@@ -1801,10 +1829,16 @@ async function submitCorrectedAddresses() {
         }
         
         let username;
+        let sessionID;
+        let database;
         if (isGeotabEnvironment) {
             username = await getCurrentUsername();
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
         } else {
             username = currentUser.member_email;
+            sessionID = null;
+            database = null;
         }
         
         if (!username) {
@@ -1821,7 +1855,9 @@ async function submitCorrectedAddresses() {
             },
             body: JSON.stringify({
                 username: username,
-                corrected_addresses: correctedData
+                corrected_addresses: correctedData,
+                session_id: sessionID,
+                database: database
             })
         });
         
@@ -2371,12 +2407,18 @@ async function createRoutes() {
     try {
 
         let username;
+        let sessionID;
+        let database;
 
         if (isGeotabEnvironment) {
             username = await getCurrentUsername();
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
         }
         else {
             username = currentUser.member_email;
+            sessionID = null;
+            database = null;
         }
         
         if (!username) {
