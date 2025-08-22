@@ -1249,6 +1249,9 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
 /**
  * Show address validation form for invalid addresses (MODIFIED)
  */
+/**
+ * Show address validation form for invalid addresses (MODIFIED)
+ */
 function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
     const fileInfo = document.getElementById('fileInfo');
     if (!fileInfo) return;
@@ -1415,9 +1418,17 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
             border-radius: 0.375rem;
             max-height: 200px;
             overflow-y: auto;
-            z-index: 1000;
+            z-index: 9999;
             box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
             margin-top: 1px;
+        }
+        
+        .invalid-address-item {
+            overflow: visible !important;
+        }
+        
+        .invalid-address-item .card-body {
+            overflow: visible !important;
         }
         
         .zone-option {
