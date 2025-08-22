@@ -1159,7 +1159,10 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
             
             if (!response.ok) {
                 if (response.status === 404) {
-                    throw new Error('Validation job not found or expired');
+                    // Instead of throwing error, just continue polling
+                    console.warn('Validation job not found, retrying in 2 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
                 }
                 throw new Error('Failed to check validation status');
             }
@@ -1856,7 +1859,10 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
             
             if (!response.ok) {
                 if (response.status === 404) {
-                    throw new Error('Retry geocoding job not found or expired');
+                    // Instead of throwing error, just continue polling
+                    console.warn('Retry geocoding job not found, retrying in 2 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
                 }
                 throw new Error('Failed to check retry geocoding status');
             }
