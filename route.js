@@ -1126,6 +1126,7 @@ async function validateAddresses(addresses, fileName) {
             username = await getCurrentUsername();
             sessionID = await getSessionId();
             database = await getDatabaseName();
+            console.log("Geotab environment detected. Username:", username, "SessionID:", sessionID, "Database:", database);
         }
         else {
             username = currentUser.member_email;
