@@ -741,28 +741,3 @@
     resize: vertical;
     min-height: 100px;
 }
-
-.route-results .btn-group {
-    flex-wrap: wrap;
-    width: auto;
-    min-width: 0;
-    max-width: 100%;
-    gap: 0.5rem;
-}
-
-.route-results .btn-group .btn {
-    white-space: normal;
-    word-break: break-word;
-    min-width: 120px;
-}
-
-@media (max-width: 600px) {
-    .route-results .btn-group {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .route-results .btn-group .btn {
-        width: 100%;
-    }
-}
