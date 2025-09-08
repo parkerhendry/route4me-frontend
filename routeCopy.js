@@ -17,6 +17,7 @@ let currentJobTypes = [];
 let currentMap = null;
 let currentMarker = null;
 let currentAddressIndex = null;
+let availableZones = [];
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -26,21 +27,41 @@ const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
  */
 function getCurrentUsername() { 
     return new Promise((resolve, reject) => { 
-        if (isGeotabEnvironment && api && api.getSession) { 
-            // Inside Geotab - try to get session
-            api.getSession(function(session) { 
-                console.log('session:', session); 
-                if (session && session.userName) { 
-                    resolve(session.userName); 
-                } else { 
-                    // Session exists but no username - prompt for email
-                    promptForEmailValidation().then(resolve).catch(reject); 
-                } 
-            }); 
-        } else { 
-            // Outside Geotab - prompt for email
-            promptForEmailValidation().then(resolve).catch(reject); 
-        } 
+        api.getSession(function(session) { 
+            console.log('session:', session); 
+            if (session && session.userName) { 
+                resolve(session.userName); 
+            } else { 
+                // Session exists but no username - prompt for email
+                promptForEmailValidation().then(resolve).catch(reject); 
+            } 
+        }); 
+    }); 
+}
+
+function getSessionId() { 
+    return new Promise((resolve, reject) => { 
+        api.getSession(function(session) { 
+            console.log('session:', session); 
+            if (session && session.sessionId) { 
+                resolve(session.sessionId); 
+            } else { 
+                reject(new Error('Session ID not available')); 
+            } 
+        }); 
+    }); 
+}
+
+function getDatabaseName() { 
+    return new Promise((resolve, reject) => { 
+        api.getSession(function(session) { 
+            console.log('session:', session); 
+            if (session && session.database) { 
+                resolve(session.database); 
+            } else { 
+                reject(new Error('Database name not available')); 
+            } 
+        }); 
     }); 
 }
 
@@ -1098,12 +1119,19 @@ async function validateAddresses(addresses, fileName) {
     try {
 
         let username;
+        let sessionID;
+        let database;
 
         if (isGeotabEnvironment) {
             username = await getCurrentUsername();
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
+            console.log("Geotab environment detected. Username:", username, "SessionID:", sessionID, "Database:", database);
         }
         else {
             username = currentUser.member_email;
+            sessionID = null;
+            database = null;
         }
         
         
@@ -1122,7 +1150,9 @@ async function validateAddresses(addresses, fileName) {
             },
             body: JSON.stringify({
                 username: username,
-                addresses: addresses
+                addresses: addresses,
+                session_id: sessionID,
+                database: database
             })
         });
         
@@ -1158,7 +1188,10 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
             
             if (!response.ok) {
                 if (response.status === 404) {
-                    throw new Error('Validation job not found or expired');
+                    // Instead of throwing error, just continue polling
+                    console.warn('Validation job not found, retrying in 2 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
                 }
                 throw new Error('Failed to check validation status');
             }
@@ -1175,6 +1208,9 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
                 
                 if (jobInfo.result && jobInfo.result.success) {
                     const result = jobInfo.result;
+                    
+                    // Store zones for autocomplete functionality
+                    availableZones = result.zones || [];
                     
                     if (result.invalid_count > 0) {
                         showAlert(`${result.invalid_count} addresses need correction. Please review and correct them.`, 'warning');
@@ -1210,6 +1246,9 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
     }
 }
 
+/**
+ * Show address validation form for invalid addresses (MODIFIED)
+ */
 /**
  * Show address validation form for invalid addresses (MODIFIED)
  */
@@ -1310,17 +1349,24 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                             <h6 class="card-title">${address.builder_name} - ${address.problem_type}</h6>
                             <p class="text-muted mb-2">
                                 <strong>Address:</strong> ${address.address}<br>
+                                <strong>Subdivision:</strong> ${address.subdiv_name || 'N/A'}<br>
                                 <strong>Confidence:</strong> ${address.confidence || 'Low confidence'}
                                 ${address.lat && address.lng ? `<br><strong>Coordinates:</strong> ${address.lat.toFixed(6)}, ${address.lng.toFixed(6)}` : ''}
                             </p>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Enter Corrected Address (Optional):</label>
-                            <input type="text" class="form-control corrected-address" 
-                                id="corrected-${filteredIndex}" 
-                                data-original-index="${originalIndex}"
-                                value="${address.address}"
-                                placeholder="Enter corrected address (optional)">
+                            <label class="form-label">Enter Corrected Address or Zone:</label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control corrected-address" 
+                                    id="corrected-${filteredIndex}" 
+                                    data-original-index="${originalIndex}"
+                                    value="${address.address}"
+                                    placeholder="Enter address or zone name"
+                                    autocomplete="off">
+                                <div class="zone-dropdown" id="zone-dropdown-${filteredIndex}" style="display: none;">
+                                    <!-- Zone options will be populated here -->
+                                </div>
+                            </div>
                         </div>
                         <div class="col-md-3 text-center">
                             ${address.lat && address.lng ? `
@@ -1360,18 +1406,162 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
                 </div>
             </div>
         </div>
+        
+        <style>
+        .zone-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 0.375rem;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            margin-top: 1px;
+        }
+        
+        .invalid-address-item {
+            overflow: visible !important;
+        }
+        
+        .invalid-address-item .card-body {
+            overflow: visible !important;
+        }
+        
+        .zone-option {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            transition: background-color 0.15s ease-in-out;
+            color: #212529;
+        }
+        
+        .zone-option:hover {
+            background-color: #e9ecef;
+        }
+        
+        .zone-option:active {
+            background-color: #dee2e6;
+        }
+        
+        .zone-option:last-child {
+            border-bottom: none;
+        }
+        
+        .zone-option strong {
+            color: #495057;
+        }
+        
+        .zone-option small {
+            font-size: 0.875em;
+        }
+        
+        .corrected-address:focus + .zone-dropdown {
+            border-color: #86b7fe;
+        }
+        </style>
     `;
     
     // Replace the entire fileInfo innerHTML (this removes the success alert and proceed button)
     fileInfo.innerHTML = formHtml;
     
+    // Add event listeners for autocomplete functionality
+    filteredInvalidAddresses.forEach((address, filteredIndex) => {
+        setupZoneAutocomplete(filteredIndex);
+    });
+    
     // Store data for later use (update with filtered data but preserve original indices)
     window.validAddresses = allValidAddresses;
     window.invalidAddresses = filteredInvalidAddresses;
-    // Don't need originalToFilteredIndexMap anymore since we're preserving originalIndex directly
-    // Keep existing manualCoordinates
 }
 
+/**
+ * Setup zone autocomplete for a specific input field
+ */
+function setupZoneAutocomplete(filteredIndex) {
+    const input = document.getElementById(`corrected-${filteredIndex}`);
+    const dropdown = document.getElementById(`zone-dropdown-${filteredIndex}`);
+    
+    if (!input || !dropdown) return;
+    
+    input.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        
+        if (query.length < 2) {
+            dropdown.style.display = 'none';
+            return;
+        }
+        
+        // Filter zones based on input
+        const filteredZones = availableZones.filter(zone => 
+            zone.name.toLowerCase().includes(query)
+        ).slice(0, 10); // Limit to 10 results
+        
+        if (filteredZones.length === 0) {
+            dropdown.innerHTML = `
+                <div class="zone-option text-muted">
+                    <i class="fas fa-search me-2"></i>No zones found matching "${query}"
+                </div>
+            `;
+            dropdown.style.display = 'block';
+            return;
+        }
+        
+        // Populate dropdown
+        dropdown.innerHTML = filteredZones.map(zone => `
+            <div class="zone-option" onclick="selectZone('${zone.name.replace(/'/g, "\\'")}', ${filteredIndex})">
+                <div>
+                    <strong>${zone.name}</strong>
+                    ${zone.comment ? `<br><small class="text-muted">${zone.comment}</small>` : ''}
+                </div>
+            </div>
+        `).join('');
+        
+        dropdown.style.display = 'block';
+    });
+    
+    // Hide dropdown when input loses focus (with small delay for clicking)
+    input.addEventListener('blur', function() {
+        setTimeout(() => {
+            dropdown.style.display = 'none';
+        }, 150);
+    });
+    
+    // Show dropdown when input gains focus (if there's content)
+    input.addEventListener('focus', function() {
+        if (this.value.trim().length >= 2) {
+            // Trigger input event to show relevant results
+            this.dispatchEvent(new Event('input'));
+        }
+    });
+    
+    // Hide dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Select a zone from the dropdown
+ */
+function selectZone(zoneName, filteredIndex) {
+    const input = document.getElementById(`corrected-${filteredIndex}`);
+    const dropdown = document.getElementById(`zone-dropdown-${filteredIndex}`);
+    
+    if (input) {
+        input.value = zoneName;
+        input.focus(); // Keep focus on input
+    }
+    
+    if (dropdown) {
+        dropdown.style.display = 'none';
+    }
+}
 
 /**
  * Show location on map for manual adjustment
@@ -1619,13 +1809,48 @@ function cancelAddressCorrection() {
  */
 async function submitCorrectedAddresses() {
     try {
+        const correctedData = [];
+        const correctedInputs = document.querySelectorAll('.corrected-address');
+        
+        correctedInputs.forEach(input => {
+            const originalIndex = parseInt(input.getAttribute('data-original-index'));
+            const correctedAddress = input.value.trim();
+            
+            // Find the original invalid address data
+            const originalAddress = window.invalidAddresses.find(addr => addr.originalIndex === originalIndex);
+            
+            if (originalAddress) {
+                const correctionData = {
+                    original_data: originalAddress,
+                    corrected_address: correctedAddress !== originalAddress.address ? correctedAddress : null
+                };
+                
+                // Check if there are manual coordinates for this address
+                const manualCoords = window.manualCoordinates && window.manualCoordinates[originalIndex];
+                if (manualCoords && manualCoords.manually_adjusted) {
+                    correctionData.manual_coordinates = manualCoords;
+                }
+                
+                correctedData.push(correctionData);
+            }
+        });
+        
+        if (correctedData.length === 0) {
+            showAlert('No addresses to correct', 'warning');
+            return;
+        }
+        
         let username;
-
+        let sessionID;
+        let database;
         if (isGeotabEnvironment) {
             username = await getCurrentUsername();
-        }
-        else {
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
+        } else {
             username = currentUser.member_email;
+            sessionID = null;
+            database = null;
         }
         
         if (!username) {
@@ -1633,51 +1858,7 @@ async function submitCorrectedAddresses() {
             return;
         }
         
-        const correctedAddresses = [];
-        const invalidAddresses = window.invalidAddresses || [];
-        const manualCoordinates = window.manualCoordinates || {};
-        
-        // Collect corrected addresses and manual coordinates
-        invalidAddresses.forEach((address, filteredIndex) => {
-            const originalIndex = address.originalIndex;
-            const correctedInput = document.getElementById(`corrected-${filteredIndex}`);
-            const hasManualCoords = manualCoordinates[originalIndex];
-            const hasAddressChange = correctedInput && correctedInput.value.trim() !== address.address;
-            
-            // Include if there are manual coordinates OR address changes
-            if (hasManualCoords || hasAddressChange) {
-                const correctionData = {
-                    original_data: {
-                        ...address,
-                        originalIndex: originalIndex // Include original index for backend reference
-                    }
-                };
-                
-                // If there are manual coordinates, use them
-                if (hasManualCoords) {
-                    correctionData.manual_coordinates = {
-                        lat: hasManualCoords.lat,
-                        lng: hasManualCoords.lng,
-                        manually_adjusted: true
-                    };
-                }
-                
-                // If there's an address change, include it
-                if (hasAddressChange) {
-                    correctionData.corrected_address = correctedInput.value.trim();
-                }
-                
-                correctedAddresses.push(correctionData);
-            }
-        });
-        
-        if (correctedAddresses.length === 0) {
-            showAlert('No corrections were made. Use "Proceed with Current Addresses" if you want to continue as-is.', 'info');
-            return;
-        }
-        
-        // Start retry geocoding job
-        showLoadingIndicator('Starting address correction validation...');
+        showLoadingIndicator('Validating corrected addresses...');
         
         const response = await fetch(`${BACKEND_URL}/retry-geocoding`, {
             method: 'POST',
@@ -1686,7 +1867,9 @@ async function submitCorrectedAddresses() {
             },
             body: JSON.stringify({
                 username: username,
-                corrected_addresses: correctedAddresses
+                corrected_addresses: correctedData,
+                session_id: sessionID,
+                database: database
             })
         });
         
@@ -1698,7 +1881,6 @@ async function submitCorrectedAddresses() {
         }
         
         if (data.success) {
-            // Poll for job status
             await pollRetryGeocodingStatus(data.job_id);
         } else {
             hideLoadingIndicator();
@@ -1717,7 +1899,7 @@ async function submitCorrectedAddresses() {
  */
 async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
     const startTime = Date.now();
-    const maxWaitTime = maxWaitMinutes * 60 * 1000; // Convert to milliseconds
+    const maxWaitTime = maxWaitMinutes * 60 * 1000;
     
     try {
         while (Date.now() - startTime < maxWaitTime) {
@@ -1725,14 +1907,16 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
             
             if (!response.ok) {
                 if (response.status === 404) {
-                    throw new Error('Retry geocoding job not found or expired');
+                    // Instead of throwing error, just continue polling
+                    console.warn('Retry geocoding job not found, retrying in 2 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
                 }
                 throw new Error('Failed to check retry geocoding status');
             }
             
             const jobInfo = await response.json();
             
-            // Update loading indicator with progress
             if (jobInfo.message && jobInfo.progress !== undefined) {
                 showLoadingIndicator(`${jobInfo.message} (${jobInfo.progress}%)`);
             }
@@ -1742,46 +1926,24 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                 
                 if (jobInfo.result && jobInfo.result.success) {
                     const results = jobInfo.result.results;
-                    const stillInvalid = results.filter(r => 
-                        r.status === 'success' && 
-                        r.confidence !== 'high' && 
-                        r.confidence !== 'manually_adjusted'
-                    );
-                    const nowValid = results.filter(r => 
-                        r.status === 'success' && 
-                        (r.confidence === 'high' || r.confidence === 'manually_adjusted')
-                    );
-                    const failed = results.filter(r => r.status !== 'success');
                     
-                    // FIXED: Keep unchanged addresses from original invalid list (excluding corrected ones)
-                    const invalidAddresses = window.invalidAddresses || [];
-                    const manualCoordinates = window.manualCoordinates || {};
+                    // Update zones if provided
+                    if (jobInfo.result.zones) {
+                        availableZones = jobInfo.result.zones;
+                    }
                     
-                    // Create a set of original indices that were corrected
-                    const correctedOriginalIndices = new Set();
-                    results.forEach(result => {
-                        if (result.originalIndex !== undefined) {
-                            correctedOriginalIndices.add(result.originalIndex);
-                        }
-                    });
+                    // Process results and merge with valid addresses
+                    const successfulResults = results.filter(r => r.status === 'success');
+                    const failedResults = results.filter(r => r.status !== 'success');
                     
-                    const unchangedAddresses = invalidAddresses.filter((address) => {
-                        const originalIndex = address.originalIndex;
-                        return !correctedOriginalIndices.has(originalIndex) && !manualCoordinates[originalIndex];
-                    });
-                    
-                    if (stillInvalid.length > 0 || failed.length > 0 || unchangedAddresses.length > 0) {
-                        // Some addresses still need attention
-                        const allValid = (window.validAddresses || []).concat(nowValid);
-                        const allInvalid = [...stillInvalid, ...failed, ...unchangedAddresses];
+                    if (failedResults.length === 0) {
+                        // All addresses were successfully corrected
+                        uploadedAddresses = [...window.validAddresses, ...successfulResults];
+                        showAlert(`All addresses corrected successfully! Total: ${uploadedAddresses.length}`, 'success');
                         
-                        showAlert(`${nowValid.length} addresses improved. ${allInvalid.length} still need attention.`, 'warning');
-                        showAddressValidationForm(allValid, allInvalid, 'Updated File');
-                    } else {
-                        // All addresses are now valid
-                        uploadedAddresses = (window.validAddresses || []).concat(nowValid);
-                        showAlert(`All addresses validated successfully! Total: ${uploadedAddresses.length}`, 'success');
-                        showCleanFileInfo('Corrected File', uploadedAddresses.length);
+                        // Clear the form and show file info
+                        const fileName = document.querySelector('#fileInfo .alert-warning strong')?.nextSibling?.textContent?.trim() || 'uploaded file';
+                        showCleanFileInfo(fileName, uploadedAddresses.length);
                         
                         // Clear stored data
                         window.validAddresses = null;
@@ -1789,24 +1951,30 @@ async function pollRetryGeocodingStatus(jobId, maxWaitMinutes = 5) {
                         window.manualCoordinates = {};
                         
                         await validateDriverAssignments();
+                    } else {
+                        // Some addresses still need attention
+                        const newValidAddresses = [...window.validAddresses, ...successfulResults];
+                        showAlert(`${successfulResults.length} addresses corrected successfully. ${failedResults.length} still need attention.`, 'warning');
+                        
+                        // Show form again with remaining failed addresses
+                        const fileName = document.querySelector('#fileInfo .alert-warning strong')?.nextSibling?.textContent?.trim() || 'uploaded file';
+                        showAddressValidationForm(newValidAddresses, failedResults, fileName);
                     }
                 } else {
-                    throw new Error('Retry geocoding completed but returned no results');
+                    throw new Error('Address correction completed but returned no results');
                 }
                 return;
                 
             } else if (jobInfo.status === 'failed') {
                 hideLoadingIndicator();
-                throw new Error(jobInfo.error || 'Retry geocoding failed');
+                throw new Error(jobInfo.error || 'Address correction failed');
             }
             
-            // Wait before next poll (2 seconds)
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
         
-        // Timeout reached
         hideLoadingIndicator();
-        throw new Error(`Retry geocoding timed out after ${maxWaitMinutes} minutes`);
+        throw new Error(`Address correction timed out after ${maxWaitMinutes} minutes`);
         
     } catch (error) {
         hideLoadingIndicator();
@@ -2251,12 +2419,18 @@ async function createRoutes() {
     try {
 
         let username;
+        let sessionID;
+        let database;
 
         if (isGeotabEnvironment) {
             username = await getCurrentUsername();
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
         }
         else {
             username = currentUser.member_email;
+            sessionID = null;
+            database = null;
         }
         
         if (!username) {
