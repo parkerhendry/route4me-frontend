@@ -757,3 +757,15 @@
     white-space: normal;
     word-break: break-word;
 }
+
+.route-btn-group {
+    min-width: 0;
+    max-width: 100%;
+    flex-shrink: 1;
+    padding-right: 8px; /* Prevents cutoff on the right */
+}
+
+.route-btn-group .btn {
+    white-space: normal;
+    word-break: break-word;
+}

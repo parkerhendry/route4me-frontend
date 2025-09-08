@@ -2578,10 +2578,10 @@ function showRouteCreationResults(data) {
             <p><strong>Total Routes Created:</strong> ${data.total_routes}</p>
         </div>
         
-        <div class="route-results-header d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
             <h5>Routes</h5>
-            <div class="btn-group">
-                <button id="editRoutesBtn" class="btn btn-primary" style="margin-left: -20px;" onclick="toggleEditMode()">
+            <div class="btn-group route-btn-group">
+                <button id="editRoutesBtn" class="btn btn-primary" onclick="toggleEditMode()">
                     <i class="fas fa-edit me-2"></i>Edit Routes
                 </button>
                 <button id="finalizeRoutesBtn" class="btn btn-success d-none" onclick="finalizeRoutes()">
