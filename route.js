@@ -1426,10 +1426,12 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
         }
         
         .invalid-address-item {
+            position: relative;
             overflow: visible !important;
         }
         
         .invalid-address-item .card-body {
+            position: relative;
             overflow: visible !important;
         }
         
