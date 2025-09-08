@@ -1434,6 +1434,17 @@ function showAddressValidationForm(validAddresses, invalidAddresses, fileName) {
             position: relative;
             overflow: visible !important;
         }
+
+        .invalid-address-item.card {
+            position: relative;
+            overflow: visible !important;
+            z-index: 1;
+        }
+
+        .invalid-address-item.card:hover,
+        .invalid-address-item.card:focus-within {
+            z-index: 100;
+        }
         
         .zone-option {
             padding: 0.75rem 1rem;
@@ -1494,7 +1505,7 @@ function setupZoneAutocomplete(filteredIndex) {
     input.addEventListener('input', function() {
         const query = this.value.toLowerCase().trim();
         
-        if (query.length < 2) {
+        if (query.length < 1) {
             dropdown.style.display = 'none';
             return;
         }
