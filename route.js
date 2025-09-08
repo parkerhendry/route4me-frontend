@@ -2578,14 +2578,14 @@ function showRouteCreationResults(data) {
             <p><strong>Total Routes Created:</strong> ${data.total_routes}</p>
         </div>
         
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5>Routes</h5>
-            <div class="btn-group route-btn-group">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+            <h5 class="mb-2 mb-md-0">Routes</h5>
+            <div class="btn-group route-btn-group flex-shrink-0">
                 <button id="editRoutesBtn" class="btn btn-primary" onclick="toggleEditMode()">
-                    <i class="fas fa-edit me-2"></i>Edit Routes
+                    <i class="fas fa-edit me-1"></i>Edit Routes
                 </button>
                 <button id="finalizeRoutesBtn" class="btn btn-success d-none" onclick="finalizeRoutes()">
-                    <i class="fas fa-check me-2"></i>Finalize Routes
+                    <i class="fas fa-check me-1"></i>Finalize Routes
                 </button>
             </div>
         </div>
@@ -2615,27 +2615,25 @@ function showRouteCreationResults(data) {
         
         data.created_routes.forEach((route, routeIndex) => {
             if (route.status === 'success') {
+                // Calculate correct initial address count
+                const correctAddressCount = Math.max(0, (route.complete_route_addresses?.length || 0) - 2);
+                
                 resultsHtml += `
-                    <div class="card mb-3" id="route-card-${routeIndex}">
+                    <div class="card mb-3 route-card" id="route-card-${routeIndex}">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
                                 <h6 class="card-title">
                                     <i class="fas fa-route me-2"></i>${route.driver}
                                     <span class="badge bg-success ms-2">Success</span>
                                 </h6>
-                                <div class="route-actions d-none">
-                                    <select class="form-select form-select-sm" id="route-select-${routeIndex}" onchange="handleRouteAddressTransfer(${routeIndex})">
-                                        <option value="">Move address to...</option>
-                                    </select>
-                                </div>
                             </div>
                             <p class="card-text">
                                 <strong>Starting Location:</strong> ${route.starting_location?.toUpperCase()}<br>
-                                <strong>Total Addresses:</strong> <span id="address-count-${routeIndex}">${route.addresses_count}</span><br>
+                                <strong>Total Addresses:</strong> <span id="address-count-${routeIndex}">${correctAddressCount}</span><br>
                             </p>
                 `;
                 
-                // Add route addresses if available - use complete route for display
+                // Add route addresses if available
                 if (route.complete_route_addresses && route.complete_route_addresses.length > 0) {
                     resultsHtml += `
                         <div class="mt-3">
@@ -2715,9 +2713,6 @@ function showRouteCreationResults(data) {
     
     resultsDiv.innerHTML = resultsHtml;
     resultsDiv.classList.remove('hidden');
-    
-    // Populate route select options for moving addresses
-    populateRouteSelectOptions();
 }
 
 /**
@@ -2797,10 +2792,52 @@ function selectAddressForMove(routeIndex, addressIndex, routeDestinationId) {
     // Highlight selected address
     const addressItem = document.getElementById(`address-item-${routeIndex}-${addressIndex}`);
     if (addressItem) {
-        addressItem.classList.add('bg-warning', 'bg-opacity-25');
+        addressItem.classList.add('bg-warning', 'bg-opacity-25', 'border', 'border-warning');
     }
     
-    showAlert('Address selected. Choose a destination route from the dropdown menu.', 'info');
+    // Show available target routes
+    showRouteTargets(routeIndex);
+    
+    showAlert('Address selected. Click on a route card below to move the address there.', 'info');
+}
+
+function showRouteTargets(excludeRouteIndex) {
+    // Remove existing highlights
+    document.querySelectorAll('.route-target-highlight').forEach(el => {
+        el.classList.remove('route-target-highlight', 'border-success', 'bg-success', 'bg-opacity-10');
+    });
+    
+    // Add click handlers and highlights to target routes
+    editableRoutes.forEach((route, targetIndex) => {
+        if (targetIndex !== excludeRouteIndex) {
+            const routeCard = document.getElementById(`route-card-${targetIndex}`);
+            if (routeCard) {
+                routeCard.classList.add('route-target-highlight', 'border-success', 'bg-success', 'bg-opacity-10');
+                routeCard.style.cursor = 'pointer';
+                
+                // Add click handler
+                const clickHandler = () => {
+                    handleRouteAddressTransfer(excludeRouteIndex, targetIndex);
+                    // Remove click handlers after use
+                    removeRouteTargetHandlers();
+                };
+                
+                routeCard.addEventListener('click', clickHandler);
+                routeCard.setAttribute('data-click-handler', 'true');
+            }
+        }
+    });
+}
+
+function removeRouteTargetHandlers() {
+    document.querySelectorAll('[data-click-handler="true"]').forEach(card => {
+        card.classList.remove('route-target-highlight', 'border-success', 'bg-success', 'bg-opacity-10');
+        card.style.cursor = 'default';
+        card.removeAttribute('data-click-handler');
+        // Clone and replace to remove event listeners
+        const newCard = card.cloneNode(true);
+        card.parentNode.replaceChild(newCard, card);
+    });
 }
 
 /**
@@ -2810,24 +2847,20 @@ function clearSelectedAddresses() {
     if (selectedAddress) {
         const addressItem = document.getElementById(`address-item-${selectedAddress.routeIndex}-${selectedAddress.addressIndex}`);
         if (addressItem) {
-            addressItem.classList.remove('bg-warning', 'bg-opacity-25');
+            addressItem.classList.remove('bg-warning', 'bg-opacity-25', 'border', 'border-warning');
         }
     }
     selectedAddress = null;
     
-    // Reset all dropdowns
-    document.querySelectorAll('[id^="route-select-"]').forEach(select => {
-        select.value = '';
-    });
+    // Remove route target highlights and handlers
+    removeRouteTargetHandlers();
 }
 
 /**
  * Handle address transfer between routes
  */
-async function handleRouteAddressTransfer(sourceRouteIndex) {
-    const targetRouteIndex = parseInt(document.getElementById(`route-select-${sourceRouteIndex}`).value);
-    
-    if (!selectedAddress || isNaN(targetRouteIndex) || selectedAddress.routeIndex !== sourceRouteIndex) {
+async function handleRouteAddressTransfer(sourceRouteIndex, targetRouteIndex) {
+    if (!selectedAddress || selectedAddress.routeIndex !== sourceRouteIndex) {
         showAlert('Please select an address first.', 'warning');
         return;
     }
@@ -2866,22 +2899,22 @@ async function handleRouteAddressTransfer(sourceRouteIndex) {
         hideLoadingIndicator();
         
         if (response.ok && data.success) {
-            // Update local data structures
+            // Update local data structures with correct count calculation
             const addressData = selectedAddress.addressData;
             
             // Remove from source route
             editableRoutes[sourceRouteIndex].complete_route_addresses.splice(selectedAddress.addressIndex, 1);
-            editableRoutes[sourceRouteIndex].addresses_count = editableRoutes[sourceRouteIndex].complete_route_addresses.filter(addr => 
-                addr.sequence_no !== 0 && addr.sequence_no !== editableRoutes[sourceRouteIndex].complete_route_addresses.length + 1
-            ).length;
+            
+            // Calculate correct address count (exclude starting and ending depot)
+            editableRoutes[sourceRouteIndex].addresses_count = editableRoutes[sourceRouteIndex].complete_route_addresses.length - 2;
             
             // Add to target route (insert before the last address which is the ending depot)
             const targetRoute = editableRoutes[targetRouteIndex];
             const insertIndex = targetRoute.complete_route_addresses.length - 1;
             targetRoute.complete_route_addresses.splice(insertIndex, 0, addressData);
-            targetRoute.addresses_count = targetRoute.complete_route_addresses.filter(addr => 
-                addr.sequence_no !== 0 && addr.sequence_no !== targetRoute.complete_route_addresses.length + 1
-            ).length;
+            
+            // Calculate correct address count for target route
+            targetRoute.addresses_count = targetRoute.complete_route_addresses.length - 2;
             
             // Re-render the routes
             updateRouteDisplay(sourceRouteIndex);
@@ -2910,9 +2943,9 @@ function updateRouteDisplay(routeIndex) {
     
     if (!addressesList || !route) return;
     
-    // Update address count
+    // Update address count (total addresses minus start and end depot)
     if (addressCountSpan) {
-        addressCountSpan.textContent = route.addresses_count;
+        addressCountSpan.textContent = Math.max(0, route.complete_route_addresses.length - 2);
     }
     
     // Re-render addresses list
