@@ -2581,6 +2581,9 @@ function showRouteCreationResults(data) {
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
             <h5 class="mb-2 mb-md-0">Routes</h5>
             <div class="btn-group route-btn-group flex-shrink-0">
+                <button id="syncRoutesBtn" class="btn btn-outline-primary" onclick="syncWithRoute4Me()" title="Sync with Route4Me to get latest changes">
+                    <i class="fas fa-sync-alt me-1"></i>Sync with Route4Me
+                </button>
                 <button id="editRoutesBtn" class="btn btn-primary" onclick="toggleEditMode()">
                     <i class="fas fa-edit me-1"></i>Edit Routes
                 </button>
@@ -2621,11 +2624,17 @@ function showRouteCreationResults(data) {
                 resultsHtml += `
                     <div class="card mb-3 route-card" id="route-card-${routeIndex}">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h6 class="card-title">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="card-title mb-0">
                                     <i class="fas fa-route me-2"></i>${route.driver}
                                     <span class="badge bg-success ms-2">Success</span>
                                 </h6>
+                                <a href="https://route4me.com/snapshot/route/${route.route_id}" 
+                                   target="_blank" 
+                                   class="btn btn-outline-primary btn-sm"
+                                   title="View this route in Route4Me">
+                                    <i class="fas fa-external-link-alt me-1"></i>View in Route4Me
+                                </a>
                             </div>
                             <p class="card-text">
                                 <strong>Starting Location:</strong> ${route.starting_location?.toUpperCase()}<br>
@@ -2713,6 +2722,152 @@ function showRouteCreationResults(data) {
     
     resultsDiv.innerHTML = resultsHtml;
     resultsDiv.classList.remove('hidden');
+}
+
+/**
+ * Sync routes with Route4Me to get latest changes
+ */
+async function syncWithRoute4Me() {
+    if (!editableRoutes || editableRoutes.length === 0) {
+        showAlert('No routes available to sync.', 'warning');
+        return;
+    }
+    
+    try {
+        let username;
+        
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+        
+        if (!username) {
+            showAlert('Unable to get username. Please refresh the page.', 'danger');
+            return;
+        }
+        
+        // Show loading indicator
+        showLoadingIndicator('Syncing routes with Route4Me...');
+        
+        // Get route IDs from editable routes
+        const routeIds = editableRoutes.map(route => route.route_id);
+        
+        const response = await fetch(`${BACKEND_URL}/sync-routes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                route_ids: routeIds
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to sync routes');
+        }
+        
+        if (data.success) {
+            // Update editableRoutes with synced data
+            const syncedRoutes = data.synced_routes.filter(route => route.status === 'success');
+            
+            // Update the editableRoutes array
+            editableRoutes = editableRoutes.map(originalRoute => {
+                const syncedRoute = syncedRoutes.find(sr => sr.route_id === originalRoute.route_id);
+                if (syncedRoute) {
+                    // Update the route with synced data while preserving original properties
+                    return {
+                        ...originalRoute,
+                        complete_route_addresses: syncedRoute.complete_route_addresses,
+                        route_name: syncedRoute.route_name || originalRoute.route_name,
+                        addresses_count: Math.max(0, (syncedRoute.complete_route_addresses?.length || 0) - 2)
+                    };
+                }
+                return originalRoute;
+            });
+            
+            // Refresh the results display
+            refreshRouteResultsDisplay();
+            
+            hideLoadingIndicator();
+            showAlert(data.message, 'success');
+            
+        } else {
+            throw new Error('Failed to sync routes');
+        }
+        
+    } catch (error) {
+        hideLoadingIndicator();
+        console.error('Route sync error:', error);
+        showAlert(`Route sync failed: ${error.message}`, 'danger');
+    }
+}
+
+/**
+ * Refresh the route results display with updated data
+ */
+function refreshRouteResultsDisplay() {
+    if (!editableRoutes || editableRoutes.length === 0) {
+        return;
+    }
+    
+    // Update each route card with fresh data
+    editableRoutes.forEach((route, routeIndex) => {
+        // Update address count
+        const addressCountElement = document.getElementById(`address-count-${routeIndex}`);
+        if (addressCountElement) {
+            addressCountElement.textContent = route.addresses_count || 0;
+        }
+        
+        // Update route addresses list
+        const routeAddressesList = document.getElementById(`route-addresses-${routeIndex}`);
+        if (routeAddressesList && route.complete_route_addresses) {
+            let addressesHtml = '';
+            
+            // Sort addresses by sequence number
+            const sortedAddresses = [...route.complete_route_addresses].sort((a, b) => a.sequence_no - b.sequence_no);
+            
+            sortedAddresses.forEach((addr, index) => {
+                const isStartingPoint = index === 0;
+                const isEndingPoint = index === sortedAddresses.length - 1;
+                
+                let listItemClass = '';
+                let badge = '';
+                let editControls = '';
+                
+                if (isStartingPoint || isEndingPoint) {
+                    listItemClass = 'list-group-item-success';
+                    badge = `<span class="badge bg-success ms-2">${isStartingPoint ? 'Starting Point' : 'Ending Point'}</span>`;
+                } else {
+                    // Add edit controls for job addresses
+                    editControls = `
+                        <div class="address-edit-controls d-none">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="selectAddressForMove(${routeIndex}, ${index}, '${addr.route_destination_id}')">
+                                <i class="fas fa-arrows-alt"></i> Move
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                addressesHtml += `
+                    <li class="list-group-item ${listItemClass}" id="address-item-${routeIndex}-${index}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${addr.address}</strong>${badge}
+                                ${addr.alias ? `<br><small class="text-muted">${addr.alias}</small>` : ''}
+                            </div>
+                            ${editControls}
+                        </div>
+                    </li>
+                `;
+            });
+            
+            routeAddressesList.innerHTML = addressesHtml;
+        }
+    });
 }
 
 /**
