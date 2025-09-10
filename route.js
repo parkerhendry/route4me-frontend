@@ -23,6 +23,7 @@ let editableRoutes = [];
 let fileUploaded = null;
 let originalExcelData = null; 
 let originalExcelHeaders = null; 
+let originalExcelFileName = null;
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -1088,6 +1089,9 @@ async function handleFileUpload(file) {
     fileUploaded = file;
     
     try {
+        // Store the original filename
+        originalExcelFileName = file.name;
+        
         // Read the Excel file using SheetJS to store the original data
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -1134,6 +1138,7 @@ async function handleFileUpload(file) {
         // Reset stored data on error
         originalExcelData = null;
         originalExcelHeaders = null;
+        originalExcelFileName = null;
     }
 }
 
@@ -2840,12 +2845,27 @@ function downloadRouteCSV(routeIndex) {
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
             
-            // Generate filename
-            const driverName = route.driver.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            const startingLocation = (route.starting_location || 'route').toUpperCase();
-            const timestamp = new Date().toISOString().slice(0, 10);
+            // Generate filename based on original Excel filename
+            let csvFilename = 'route_export.csv'; // Default fallback
             
-            link.setAttribute('download', `route_${driverName}_${startingLocation}_${timestamp}.csv`);
+            if (originalExcelFileName) {
+                // Remove the Excel extension and replace with .csv
+                let baseName = originalExcelFileName;
+                
+                // Remove .xlsx or .xls extensions
+                baseName = baseName.replace(/\.(xlsx|xls)$/i, '');
+                
+                // If the filename already ends with .csv (like "8-14-25 DFW.csv.xlsx"), remove the .csv part
+                baseName = baseName.replace(/\.csv$/i, '');
+                
+                // Add driver info and .csv extension
+                const driverName = route.driver.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                const startingLocation = (route.starting_location || 'route').toUpperCase();
+                
+                csvFilename = `${baseName}_${driverName}_${startingLocation}.csv`;
+            }
+            
+            link.setAttribute('download', csvFilename);
             link.style.visibility = 'hidden';
             
             document.body.appendChild(link);
