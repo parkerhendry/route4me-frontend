@@ -21,6 +21,8 @@ let availableZones = [];
 let routesInEditMode = false;
 let editableRoutes = [];
 let fileUploaded = null;
+let originalExcelData = null; 
+let originalExcelHeaders = null; 
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -1086,7 +1088,22 @@ async function handleFileUpload(file) {
     fileUploaded = file;
     
     try {
-        //showAlert('Processing Excel file...', 'success');
+        // Read the Excel file using SheetJS to store the original data
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to array of arrays to preserve exact structure
+        const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+        
+        if (excelData.length < 2) {
+            throw new Error('Excel file must have at least a header row and one data row');
+        }
+        
+        // Store the original Excel data and headers
+        originalExcelHeaders = excelData[0];
+        originalExcelData = excelData;
         
         const formData = new FormData();
         formData.append('file', file);
@@ -1114,6 +1131,9 @@ async function handleFileUpload(file) {
     } catch (error) {
         console.error('File upload error:', error);
         showAlert(`File upload failed: ${error.message}`, 'danger');
+        // Reset stored data on error
+        originalExcelData = null;
+        originalExcelHeaders = null;
     }
 }
 
@@ -2631,12 +2651,19 @@ function showRouteCreationResults(data) {
                                     <i class="fas fa-route me-2"></i>${route.driver}
                                     <span class="badge bg-success ms-2">Success</span>
                                 </h6>
-                                <a href="https://route4me.com/snapshot/route/${route.route_id}" 
-                                   target="_blank" 
-                                   class="btn btn-outline-primary btn-sm"
-                                   title="View this route in Route4Me">
-                                    <i class="fas fa-external-link-alt me-1"></i>View in Route4Me
-                                </a>
+                                <div class="btn-group">
+                                    <a href="https://route4me.com/snapshot/route/${route.route_id}" 
+                                       target="_blank" 
+                                       class="btn btn-outline-primary btn-sm"
+                                       title="View this route in Route4Me">
+                                        <i class="fas fa-external-link-alt me-1"></i>View in Route4Me
+                                    </a>
+                                    <button class="btn btn-outline-success btn-sm" 
+                                            onclick="downloadRouteCSV(${routeIndex})"
+                                            title="Download CSV for this route">
+                                        <i class="fas fa-download me-1"></i>Download CSV
+                                    </button>
+                                </div>
                             </div>
                             <p class="card-text">
                                 <strong>Starting Location:</strong> ${route.starting_location?.toUpperCase()}<br>
@@ -2724,6 +2751,116 @@ function showRouteCreationResults(data) {
     
     resultsDiv.innerHTML = resultsHtml;
     resultsDiv.classList.remove('hidden');
+}
+
+/**
+ * Download CSV file for a specific route
+ */
+function downloadRouteCSV(routeIndex) {
+    if (!originalExcelData || !originalExcelHeaders || !editableRoutes[routeIndex]) {
+        showAlert('Original Excel data not available for CSV download.', 'warning');
+        return;
+    }
+    
+    const route = editableRoutes[routeIndex];
+    
+    if (!route.complete_route_addresses || route.complete_route_addresses.length === 0) {
+        showAlert('No addresses found for this route.', 'warning');
+        return;
+    }
+    
+    try {
+        // Get addresses from the route (excluding starting and ending depots)
+        const routeAddresses = route.complete_route_addresses.filter((addr, index) => {
+            // Skip first (starting depot) and last (ending depot) addresses
+            return index > 0 && index < route.complete_route_addresses.length - 1;
+        });
+        
+        if (routeAddresses.length === 0) {
+            showAlert('No job addresses found for this route.', 'warning');
+            return;
+        }
+        
+        // Extract indexes from route addresses
+        const addressIndexes = [];
+        routeAddresses.forEach(addr => {
+            // Look for index in the address data - it might be stored in different ways
+            if (typeof addr.index !== 'undefined') {
+                addressIndexes.push(addr.index);
+            } else if (typeof addr.original_index !== 'undefined') {
+                addressIndexes.push(addr.original_index);
+            } else {
+                // Try to find the address in uploadedAddresses to get its index
+                const foundAddr = uploadedAddresses.find(uploadedAddr => 
+                    uploadedAddr.address === addr.address || 
+                    (uploadedAddr.lat === addr.lat && uploadedAddr.lng === addr.lng)
+                );
+                if (foundAddr && typeof foundAddr.index !== 'undefined') {
+                    addressIndexes.push(foundAddr.index);
+                }
+            }
+        });
+        
+        if (addressIndexes.length === 0) {
+            showAlert('Could not find address indexes for CSV generation.', 'warning');
+            return;
+        }
+        
+        // Create CSV data starting with headers
+        const csvData = [];
+        csvData.push(originalExcelHeaders);
+        
+        // Add corresponding rows from original Excel data
+        addressIndexes.forEach(index => {
+            // Convert 0-based index to 1-based row number (accounting for header row)
+            const rowIndex = index + 1; // index 0 = row 1 (after header), so rowIndex = index + 1
+            
+            if (rowIndex < originalExcelData.length) {
+                csvData.push(originalExcelData[rowIndex]);
+            }
+        });
+        
+        // Convert to CSV string
+        const csvString = csvData.map(row => 
+            row.map(cell => {
+                // Handle cells that contain commas, quotes, or newlines
+                const cellStr = String(cell || '');
+                if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                    return '"' + cellStr.replace(/"/g, '""') + '"';
+                }
+                return cellStr;
+            }).join(',')
+        ).join('\n');
+        
+        // Create and download the file
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            
+            // Generate filename
+            const driverName = route.driver.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const startingLocation = (route.starting_location || 'route').toUpperCase();
+            const timestamp = new Date().toISOString().slice(0, 10);
+            
+            link.setAttribute('download', `route_${driverName}_${startingLocation}_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showAlert(`CSV downloaded for ${route.driver}'s route (${addressIndexes.length} addresses)`, 'success');
+        } else {
+            throw new Error('File download not supported in this browser');
+        }
+        
+    } catch (error) {
+        console.error('Error generating CSV:', error);
+        showAlert(`Error generating CSV: ${error.message}`, 'danger');
+    }
 }
 
 /**

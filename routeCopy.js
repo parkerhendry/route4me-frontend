@@ -20,6 +20,7 @@ let currentAddressIndex = null;
 let availableZones = [];
 let routesInEditMode = false;
 let editableRoutes = [];
+let fileUploaded = null;
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -1081,6 +1082,8 @@ async function handleFileUpload(file) {
         showAlert('Please upload an Excel file (.xlsx or .xls)', 'danger');
         return;
     }
+
+    fileUploaded = file;
     
     try {
         //showAlert('Processing Excel file...', 'success');
@@ -1248,9 +1251,6 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
     }
 }
 
-/**
- * Show address validation form for invalid addresses (MODIFIED)
- */
 /**
  * Show address validation form for invalid addresses (MODIFIED)
  */
@@ -2461,6 +2461,8 @@ async function createRoutes() {
             email: driver.member_email,
             starting_location: driver.starting_location
         }));
+
+        console.log('Addresses being sent for route creation:', uploadedAddresses);
         
         // Start the async job
         const response = await fetch(`${BACKEND_URL}/create-routes`, {
@@ -2578,14 +2580,17 @@ function showRouteCreationResults(data) {
             <p><strong>Total Routes Created:</strong> ${data.total_routes}</p>
         </div>
         
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5>Routes</h5>
-            <div class="btn-group route-btn-group">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+            <h5 class="mb-2 mb-md-0">Routes</h5>
+            <div class="btn-group route-btn-group flex-shrink-0">
+                <button id="syncRoutesBtn" class="btn btn-outline-primary" onclick="syncWithRoute4Me()" title="Sync with Route4Me to get latest changes">
+                    <i class="fas fa-sync-alt me-1"></i>Sync with Route4Me
+                </button>
                 <button id="editRoutesBtn" class="btn btn-primary" onclick="toggleEditMode()">
-                    <i class="fas fa-edit me-2"></i>Edit Routes
+                    <i class="fas fa-edit me-1"></i>Edit Routes
                 </button>
                 <button id="finalizeRoutesBtn" class="btn btn-success d-none" onclick="finalizeRoutes()">
-                    <i class="fas fa-check me-2"></i>Finalize Routes
+                    <i class="fas fa-check me-1"></i>Finalize Routes
                 </button>
             </div>
         </div>
@@ -2615,27 +2620,31 @@ function showRouteCreationResults(data) {
         
         data.created_routes.forEach((route, routeIndex) => {
             if (route.status === 'success') {
+                // Calculate correct initial address count
+                const correctAddressCount = Math.max(0, (route.complete_route_addresses?.length || 0) - 2);
+                
                 resultsHtml += `
-                    <div class="card mb-3" id="route-card-${routeIndex}">
+                    <div class="card mb-3 route-card" id="route-card-${routeIndex}">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h6 class="card-title">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="card-title mb-0">
                                     <i class="fas fa-route me-2"></i>${route.driver}
                                     <span class="badge bg-success ms-2">Success</span>
                                 </h6>
-                                <div class="route-actions d-none">
-                                    <select class="form-select form-select-sm" id="route-select-${routeIndex}" onchange="handleRouteAddressTransfer(${routeIndex})">
-                                        <option value="">Move address to...</option>
-                                    </select>
-                                </div>
+                                <a href="https://route4me.com/snapshot/route/${route.route_id}" 
+                                   target="_blank" 
+                                   class="btn btn-outline-primary btn-sm"
+                                   title="View this route in Route4Me">
+                                    <i class="fas fa-external-link-alt me-1"></i>View in Route4Me
+                                </a>
                             </div>
                             <p class="card-text">
                                 <strong>Starting Location:</strong> ${route.starting_location?.toUpperCase()}<br>
-                                <strong>Total Addresses:</strong> <span id="address-count-${routeIndex}">${route.addresses_count}</span><br>
+                                <strong>Total Addresses:</strong> <span id="address-count-${routeIndex}">${correctAddressCount}</span><br>
                             </p>
                 `;
                 
-                // Add route addresses if available - use complete route for display
+                // Add route addresses if available
                 if (route.complete_route_addresses && route.complete_route_addresses.length > 0) {
                     resultsHtml += `
                         <div class="mt-3">
@@ -2715,9 +2724,152 @@ function showRouteCreationResults(data) {
     
     resultsDiv.innerHTML = resultsHtml;
     resultsDiv.classList.remove('hidden');
+}
+
+/**
+ * Sync routes with Route4Me to get latest changes
+ */
+async function syncWithRoute4Me() {
+    if (!editableRoutes || editableRoutes.length === 0) {
+        showAlert('No routes available to sync.', 'warning');
+        return;
+    }
     
-    // Populate route select options for moving addresses
-    populateRouteSelectOptions();
+    try {
+        let username;
+        
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+        
+        if (!username) {
+            showAlert('Unable to get username. Please refresh the page.', 'danger');
+            return;
+        }
+        
+        // Show loading indicator
+        showLoadingIndicator('Syncing routes with Route4Me...');
+        
+        // Get route IDs from editable routes
+        const routeIds = editableRoutes.map(route => route.route_id);
+        
+        const response = await fetch(`${BACKEND_URL}/sync-routes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                route_ids: routeIds
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to sync routes');
+        }
+        
+        if (data.success) {
+            // Update editableRoutes with synced data
+            const syncedRoutes = data.synced_routes.filter(route => route.status === 'success');
+            
+            // Update the editableRoutes array
+            editableRoutes = editableRoutes.map(originalRoute => {
+                const syncedRoute = syncedRoutes.find(sr => sr.route_id === originalRoute.route_id);
+                if (syncedRoute) {
+                    // Update the route with synced data while preserving original properties
+                    return {
+                        ...originalRoute,
+                        complete_route_addresses: syncedRoute.complete_route_addresses,
+                        route_name: syncedRoute.route_name || originalRoute.route_name,
+                        addresses_count: Math.max(0, (syncedRoute.complete_route_addresses?.length || 0) - 2)
+                    };
+                }
+                return originalRoute;
+            });
+            
+            // Refresh the results display
+            refreshRouteResultsDisplay();
+            
+            hideLoadingIndicator();
+            showAlert(data.message, 'success');
+            
+        } else {
+            throw new Error('Failed to sync routes');
+        }
+        
+    } catch (error) {
+        hideLoadingIndicator();
+        console.error('Route sync error:', error);
+        showAlert(`Route sync failed: ${error.message}`, 'danger');
+    }
+}
+
+/**
+ * Refresh the route results display with updated data
+ */
+function refreshRouteResultsDisplay() {
+    if (!editableRoutes || editableRoutes.length === 0) {
+        return;
+    }
+    
+    // Update each route card with fresh data
+    editableRoutes.forEach((route, routeIndex) => {
+        // Update address count
+        const addressCountElement = document.getElementById(`address-count-${routeIndex}`);
+        if (addressCountElement) {
+            addressCountElement.textContent = route.addresses_count || 0;
+        }
+        
+        // Update route addresses list
+        const routeAddressesList = document.getElementById(`route-addresses-${routeIndex}`);
+        if (routeAddressesList && route.complete_route_addresses) {
+            let addressesHtml = '';
+            
+            // Sort addresses by sequence number
+            const sortedAddresses = [...route.complete_route_addresses].sort((a, b) => a.sequence_no - b.sequence_no);
+            
+            sortedAddresses.forEach((addr, index) => {
+                const isStartingPoint = index === 0;
+                const isEndingPoint = index === sortedAddresses.length - 1;
+                
+                let listItemClass = '';
+                let badge = '';
+                let editControls = '';
+                
+                if (isStartingPoint || isEndingPoint) {
+                    listItemClass = 'list-group-item-success';
+                    badge = `<span class="badge bg-success ms-2">${isStartingPoint ? 'Starting Point' : 'Ending Point'}</span>`;
+                } else {
+                    // Add edit controls for job addresses
+                    editControls = `
+                        <div class="address-edit-controls d-none">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="selectAddressForMove(${routeIndex}, ${index}, '${addr.route_destination_id}')">
+                                <i class="fas fa-arrows-alt"></i> Move
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                addressesHtml += `
+                    <li class="list-group-item ${listItemClass}" id="address-item-${routeIndex}-${index}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${addr.address}</strong>${badge}
+                                ${addr.alias ? `<br><small class="text-muted">${addr.alias}</small>` : ''}
+                            </div>
+                            ${editControls}
+                        </div>
+                    </li>
+                `;
+            });
+            
+            routeAddressesList.innerHTML = addressesHtml;
+        }
+    });
 }
 
 /**
@@ -2797,10 +2949,52 @@ function selectAddressForMove(routeIndex, addressIndex, routeDestinationId) {
     // Highlight selected address
     const addressItem = document.getElementById(`address-item-${routeIndex}-${addressIndex}`);
     if (addressItem) {
-        addressItem.classList.add('bg-warning', 'bg-opacity-25');
+        addressItem.classList.add('bg-warning', 'bg-opacity-25', 'border', 'border-warning');
     }
     
-    showAlert('Address selected. Choose a destination route from the dropdown menu.', 'info');
+    // Show available target routes
+    showRouteTargets(routeIndex);
+    
+    showAlert('Address selected. Click on a route card below to move the address there.', 'info');
+}
+
+function showRouteTargets(excludeRouteIndex) {
+    // Remove existing highlights
+    document.querySelectorAll('.route-target-highlight').forEach(el => {
+        el.classList.remove('route-target-highlight', 'border-success', 'bg-success', 'bg-opacity-10');
+    });
+    
+    // Add click handlers and highlights to target routes
+    editableRoutes.forEach((route, targetIndex) => {
+        if (targetIndex !== excludeRouteIndex) {
+            const routeCard = document.getElementById(`route-card-${targetIndex}`);
+            if (routeCard) {
+                routeCard.classList.add('route-target-highlight', 'border-success', 'bg-success', 'bg-opacity-10');
+                routeCard.style.cursor = 'pointer';
+                
+                // Add click handler
+                const clickHandler = () => {
+                    handleRouteAddressTransfer(excludeRouteIndex, targetIndex);
+                    // Remove click handlers after use
+                    removeRouteTargetHandlers();
+                };
+                
+                routeCard.addEventListener('click', clickHandler);
+                routeCard.setAttribute('data-click-handler', 'true');
+            }
+        }
+    });
+}
+
+function removeRouteTargetHandlers() {
+    document.querySelectorAll('[data-click-handler="true"]').forEach(card => {
+        card.classList.remove('route-target-highlight', 'border-success', 'bg-success', 'bg-opacity-10');
+        card.style.cursor = 'default';
+        card.removeAttribute('data-click-handler');
+        // Clone and replace to remove event listeners
+        const newCard = card.cloneNode(true);
+        card.parentNode.replaceChild(newCard, card);
+    });
 }
 
 /**
@@ -2810,24 +3004,20 @@ function clearSelectedAddresses() {
     if (selectedAddress) {
         const addressItem = document.getElementById(`address-item-${selectedAddress.routeIndex}-${selectedAddress.addressIndex}`);
         if (addressItem) {
-            addressItem.classList.remove('bg-warning', 'bg-opacity-25');
+            addressItem.classList.remove('bg-warning', 'bg-opacity-25', 'border', 'border-warning');
         }
     }
     selectedAddress = null;
     
-    // Reset all dropdowns
-    document.querySelectorAll('[id^="route-select-"]').forEach(select => {
-        select.value = '';
-    });
+    // Remove route target highlights and handlers
+    removeRouteTargetHandlers();
 }
 
 /**
  * Handle address transfer between routes
  */
-async function handleRouteAddressTransfer(sourceRouteIndex) {
-    const targetRouteIndex = parseInt(document.getElementById(`route-select-${sourceRouteIndex}`).value);
-    
-    if (!selectedAddress || isNaN(targetRouteIndex) || selectedAddress.routeIndex !== sourceRouteIndex) {
+async function handleRouteAddressTransfer(sourceRouteIndex, targetRouteIndex) {
+    if (!selectedAddress || selectedAddress.routeIndex !== sourceRouteIndex) {
         showAlert('Please select an address first.', 'warning');
         return;
     }
@@ -2866,22 +3056,22 @@ async function handleRouteAddressTransfer(sourceRouteIndex) {
         hideLoadingIndicator();
         
         if (response.ok && data.success) {
-            // Update local data structures
+            // Update local data structures with correct count calculation
             const addressData = selectedAddress.addressData;
             
             // Remove from source route
             editableRoutes[sourceRouteIndex].complete_route_addresses.splice(selectedAddress.addressIndex, 1);
-            editableRoutes[sourceRouteIndex].addresses_count = editableRoutes[sourceRouteIndex].complete_route_addresses.filter(addr => 
-                addr.sequence_no !== 0 && addr.sequence_no !== editableRoutes[sourceRouteIndex].complete_route_addresses.length + 1
-            ).length;
+            
+            // Calculate correct address count (exclude starting and ending depot)
+            editableRoutes[sourceRouteIndex].addresses_count = editableRoutes[sourceRouteIndex].complete_route_addresses.length - 2;
             
             // Add to target route (insert before the last address which is the ending depot)
             const targetRoute = editableRoutes[targetRouteIndex];
             const insertIndex = targetRoute.complete_route_addresses.length - 1;
             targetRoute.complete_route_addresses.splice(insertIndex, 0, addressData);
-            targetRoute.addresses_count = targetRoute.complete_route_addresses.filter(addr => 
-                addr.sequence_no !== 0 && addr.sequence_no !== targetRoute.complete_route_addresses.length + 1
-            ).length;
+            
+            // Calculate correct address count for target route
+            targetRoute.addresses_count = targetRoute.complete_route_addresses.length - 2;
             
             // Re-render the routes
             updateRouteDisplay(sourceRouteIndex);
@@ -2910,9 +3100,9 @@ function updateRouteDisplay(routeIndex) {
     
     if (!addressesList || !route) return;
     
-    // Update address count
+    // Update address count (total addresses minus start and end depot)
     if (addressCountSpan) {
-        addressCountSpan.textContent = route.addresses_count;
+        addressCountSpan.textContent = Math.max(0, route.complete_route_addresses.length - 2);
     }
     
     // Re-render addresses list
