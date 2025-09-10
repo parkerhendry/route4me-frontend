@@ -20,6 +20,7 @@ let currentAddressIndex = null;
 let availableZones = [];
 let routesInEditMode = false;
 let editableRoutes = [];
+let fileUploaded = null;
 
 // Backend URL - Update this to your EC2 instance URL
 const BACKEND_URL = 'https://traxxisgps.duckdns.org/api';
@@ -1081,6 +1082,8 @@ async function handleFileUpload(file) {
         showAlert('Please upload an Excel file (.xlsx or .xls)', 'danger');
         return;
     }
+
+    fileUploaded = file;
     
     try {
         //showAlert('Processing Excel file...', 'success');
@@ -1248,9 +1251,6 @@ async function pollValidationStatus(jobId, fileName, maxWaitMinutes = 10) {
     }
 }
 
-/**
- * Show address validation form for invalid addresses (MODIFIED)
- */
 /**
  * Show address validation form for invalid addresses (MODIFIED)
  */
@@ -2461,6 +2461,8 @@ async function createRoutes() {
             email: driver.member_email,
             starting_location: driver.starting_location
         }));
+
+        console.log('Addresses being sent for route creation:', uploadedAddresses);
         
         // Start the async job
         const response = await fetch(`${BACKEND_URL}/create-routes`, {
