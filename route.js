@@ -2858,11 +2858,8 @@ function downloadRouteCSV(routeIndex) {
                 // If the filename already ends with .csv (like "8-14-25 DFW.csv.xlsx"), remove the .csv part
                 baseName = baseName.replace(/\.csv$/i, '');
                 
-                // Add driver info and .csv extension
-                const driverName = route.driver.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                const startingLocation = (route.starting_location || 'route').toUpperCase();
-                
-                csvFilename = `${baseName}_${driverName}_${startingLocation}.csv`;
+                // Just add .csv extension
+                csvFilename = `${baseName}.csv`;
             }
             
             link.setAttribute('download', csvFilename);
