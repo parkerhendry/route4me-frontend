@@ -997,6 +997,11 @@ async function proceedToAddressUpload() {
         return;
     }
 
+    // First validate driver addresses before proceeding to file upload
+    await validateDriverAddresses();
+}
+
+async function validateDriverAddresses() {
     // Get all driver addresses (HQ and Home) that need validation
     const addressesToValidate = [];
     selectedDrivers.forEach(driver => {
@@ -1017,6 +1022,12 @@ async function proceedToAddressUpload() {
         }
     });
 
+    // If no addresses to validate, proceed directly to file upload
+    if (addressesToValidate.length === 0) {
+        proceedToFileUploadStep();
+        return;
+    }
+
     try {
         let username;
         let sessionID;
@@ -1026,8 +1037,7 @@ async function proceedToAddressUpload() {
             username = await getCurrentUsername();
             sessionID = await getSessionId();
             database = await getDatabaseName();
-        }
-        else {
+        } else {
             username = currentUser.member_email;
             sessionID = null;
             database = null;
@@ -1116,7 +1126,8 @@ async function pollDriverAddressValidation(jobId) {
                         // Update selected drivers with validated addresses
                         updateDriverAddresses(result.valid_addresses);
                         showAlert('All driver addresses validated successfully!', 'success');
-                        proceedToFileUpload();
+                        // Call the correct next step function
+                        proceedToFileUploadStep();
                     }
                 } else {
                     throw new Error('Validation completed but returned no results');
@@ -1402,6 +1413,38 @@ function updateDriverAddresses(validAddresses) {
     });
 }
 
+function proceedToFileUploadStep() {
+    // Reset UI elements first (keeping original behavior)
+    hideCard('userValidationCard');
+    hideCard('driverSelectionCard'); 
+    hideCard('routeCreationCard');
+    hideCard('addDriverCard');
+    hideCard('jobTypesCard');
+    hideCard('locationAdjustmentCard');
+
+    // Update step and indicator (restore original step management)
+    currentStep = 3;
+    updateStepIndicator(3);
+    
+    // Show address upload card
+    showCard('addressUploadCard');
+    
+    // Make sure file upload area is visible
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    if (fileUploadArea) {
+        fileUploadArea.style.display = 'block';
+    }
+
+    // Reset any previous file info
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.classList.add('hidden');
+    }
+
+    // Setup file upload functionality
+    setupFileUpload();
+}
+
 function proceedToFileUpload() {
     currentStep = 3;
     updateStepIndicator(3);
@@ -1499,8 +1542,8 @@ function proceedWithCurrentDriverAddresses() {
     // Show warning about proceeding with invalid addresses
     showAlert('Proceeding with current addresses. Some addresses may have low geocoding confidence.', 'warning');
 
-    // Proceed to file upload
-    proceedToFileUpload();
+    // Proceed to file upload using the correct function
+    proceedToFileUploadStep();
 }
 
 function setupFileUpload() {
