@@ -1106,6 +1106,10 @@ async function pollDriverAddressValidation(jobId) {
                 if (jobInfo.result && jobInfo.result.success) {
                     const result = jobInfo.result;
 
+                    if (result.zones) {
+                        availableZones = result.zones;
+                    }
+
                     if (result.invalid_addresses && result.invalid_addresses.length > 0) {
                         showAlert(`${result.invalid_addresses.length} driver addresses need attention. Please review and correct them.`, 'warning');
                         showDriverAddressValidationForm(result.valid_addresses, result.invalid_addresses);
