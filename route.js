@@ -1407,6 +1407,8 @@ function proceedToFileUpload() {
     updateStepIndicator(3);
     hideCard('driverSelectionCard');
     showCard('addressUploadCard');
+
+    setupFileUpload();
 }
 
 function cancelDriverValidation() {
