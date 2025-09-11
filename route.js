@@ -1173,12 +1173,19 @@ function showDriverAddressValidationForm(validAddresses, invalidAddresses) {
                             </p>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Enter Corrected Address:</label>
-                            <input type="text" class="form-control corrected-driver-address" 
-                                id="corrected-${index}"
-                                value="${address.address}"
-                                data-driver-email="${address.driver_email}"
-                                data-address-type="${address.type}">
+                            <label class="form-label">Enter Corrected Address or Zone:</label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control corrected-driver-address" 
+                                    id="corrected-driver-${index}"
+                                    value="${address.address}"
+                                    data-driver-email="${address.driver_email}"
+                                    data-address-type="${address.type}"
+                                    placeholder="Enter address or zone name"
+                                    autocomplete="off">
+                                <div class="zone-dropdown" id="driver-zone-dropdown-${index}" style="display: none;">
+                                    <!-- Zone options will be populated here -->
+                                </div>
+                            </div>
                         </div>
                         <div class="col-md-2">
                             ${address.lat && address.lng ? `
@@ -1209,9 +1216,169 @@ function showDriverAddressValidationForm(validAddresses, invalidAddresses) {
                 </div>
             </div>
         </div>
+        
+        <style>
+        .zone-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 0.375rem;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            margin-top: 1px;
+        }
+        
+        .invalid-address-item {
+            position: relative;
+            overflow: visible !important;
+        }
+        
+        .invalid-address-item .card-body {
+            position: relative;
+            overflow: visible !important;
+        }
+
+        .invalid-address-item.card {
+            position: relative;
+            overflow: visible !important;
+            z-index: 1;
+        }
+
+        .invalid-address-item.card:hover,
+        .invalid-address-item.card:focus-within {
+            z-index: 100;
+        }
+        
+        .zone-option {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            transition: background-color 0.15s ease-in-out;
+            color: #212529;
+        }
+        
+        .zone-option:hover {
+            background-color: #e9ecef;
+        }
+        
+        .zone-option:active {
+            background-color: #dee2e6;
+        }
+        
+        .zone-option:last-child {
+            border-bottom: none;
+        }
+        
+        .zone-option strong {
+            color: #495057;
+        }
+        
+        .zone-option small {
+            font-size: 0.875em;
+        }
+        
+        .corrected-driver-address:focus + .zone-dropdown {
+            border-color: #86b7fe;
+        }
+        </style>
     `;
 
     driverList.innerHTML = formHtml;
+
+    // Add event listeners for autocomplete functionality
+    invalidAddresses.forEach((address, index) => {
+        setupDriverZoneAutocomplete(index);
+    });
+}
+
+/**
+ * Setup zone autocomplete for driver address input fields
+ */
+function setupDriverZoneAutocomplete(index) {
+    const input = document.getElementById(`corrected-driver-${index}`);
+    const dropdown = document.getElementById(`driver-zone-dropdown-${index}`);
+    
+    if (!input || !dropdown) return;
+    
+    input.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        
+        if (query.length < 1) {
+            dropdown.style.display = 'none';
+            return;
+        }
+        
+        // Filter zones based on input (using availableZones from regular address validation)
+        const filteredZones = (availableZones || []).filter(zone => 
+            zone.name.toLowerCase().includes(query)
+        ).slice(0, 10); // Limit to 10 results
+        
+        if (filteredZones.length === 0) {
+            dropdown.innerHTML = `
+                <div class="zone-option text-muted">
+                    <i class="fas fa-search me-2"></i>No zones found matching "${query}"
+                </div>
+            `;
+            dropdown.style.display = 'block';
+            return;
+        }
+        
+        // Populate dropdown
+        dropdown.innerHTML = filteredZones.map(zone => `
+            <div class="zone-option" onclick="selectDriverZone('${zone.name.replace(/'/g, "\\'")}', ${index})">
+                <div>
+                    <strong>${zone.name}</strong>
+                    ${zone.comment ? `<br><small class="text-muted">${zone.comment}</small>` : ''}
+                </div>
+            </div>
+        `).join('');
+        
+        dropdown.style.display = 'block';
+    });
+    
+    // Hide dropdown when input loses focus (with small delay for clicking)
+    input.addEventListener('blur', function() {
+        setTimeout(() => {
+            dropdown.style.display = 'none';
+        }, 150);
+    });
+    
+    // Show dropdown when input gains focus (if there's content)
+    input.addEventListener('focus', function() {
+        if (this.value.trim().length >= 2) {
+            // Trigger input event to show relevant results
+            this.dispatchEvent(new Event('input'));
+        }
+    });
+    
+    // Hide dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Select a zone from the driver zone dropdown
+ */
+function selectDriverZone(zoneName, index) {
+    const input = document.getElementById(`corrected-driver-${index}`);
+    const dropdown = document.getElementById(`driver-zone-dropdown-${index}`);
+    
+    if (input) {
+        input.value = zoneName;
+        input.focus(); // Keep focus on input
+    }
+    
+    if (dropdown) {
+        dropdown.style.display = 'none';
+    }
 }
 
 function updateDriverAddresses(validAddresses) {
@@ -1263,13 +1430,20 @@ async function submitCorrectedDriverAddresses() {
         });
 
         let username;
+        let sessionID;
+        let database;
+
         if (isGeotabEnvironment) {
             username = await getCurrentUsername();
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
         } else {
             username = currentUser.member_email;
+            sessionID = null;
+            database = null;
         }
 
-        showLoadingIndicator('Validating corrected addresses...');
+        showLoadingIndicator('Validating corrected driver addresses...');
 
         const response = await fetch(`${BACKEND_URL}/validate-driver-addresses`, {
             method: 'POST',
@@ -1278,7 +1452,9 @@ async function submitCorrectedDriverAddresses() {
             },
             body: JSON.stringify({
                 username: username,
-                addresses: correctedAddresses
+                addresses: correctedAddresses,
+                session_id: sessionID,
+                database: database
             })
         });
 
@@ -1296,8 +1472,8 @@ async function submitCorrectedDriverAddresses() {
 
     } catch (error) {
         hideLoadingIndicator();
-        console.error('Error validating corrected addresses:', error);
-        showAlert(`Validation failed: ${error.message}`, 'danger');
+        console.error('Error validating corrected driver addresses:', error);
+        showAlert(`Driver address validation failed: ${error.message}`, 'danger');
     }
 }
 
