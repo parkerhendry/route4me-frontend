@@ -1000,15 +1000,14 @@ async function proceedToAddressUpload() {
     // Get all driver addresses (HQ and Home) that need validation
     const addressesToValidate = [];
     selectedDrivers.forEach(driver => {
-        if (driver.hq) {
+        if (driver.starting_location === 'hq' && driver.hq) {
             addressesToValidate.push({
                 address: driver.hq,
                 type: 'hq',
                 driver_email: driver.member_email,
                 driver_name: `${driver.member_first_name} ${driver.member_last_name}`
             });
-        }
-        if (driver.home) {
+        } else if (driver.starting_location === 'home' && driver.home) {
             addressesToValidate.push({
                 address: driver.home,
                 type: 'home',
