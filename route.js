@@ -991,41 +991,335 @@ function updateDriverSelection() {
 /**
  * Proceed to address upload step
  */
-function proceedToAddressUpload() {
+async function proceedToAddressUpload() {
     if (selectedDrivers.length === 0) {
         showAlert('Please select at least one driver.', 'warning');
         return;
     }
-    
-    // Reset UI elements first
-    hideCard('userValidationCard');
-    hideCard('driverSelectionCard'); 
-    hideCard('routeCreationCard');
-    hideCard('addDriverCard');
-    hideCard('jobTypesCard');
-    hideCard('locationAdjustmentCard');
 
-    // Update step and indicator
+    // Get all driver addresses (HQ and Home) that need validation
+    const addressesToValidate = [];
+    selectedDrivers.forEach(driver => {
+        if (driver.hq) {
+            addressesToValidate.push({
+                address: driver.hq,
+                type: 'hq',
+                driver_email: driver.member_email,
+                driver_name: `${driver.member_first_name} ${driver.member_last_name}`
+            });
+        }
+        if (driver.home) {
+            addressesToValidate.push({
+                address: driver.home,
+                type: 'home',
+                driver_email: driver.member_email,
+                driver_name: `${driver.member_first_name} ${driver.member_last_name}`
+            });
+        }
+    });
+
+    try {
+        let username;
+        let sessionID;
+        let database;
+
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+            sessionID = await getSessionId();
+            database = await getDatabaseName();
+        }
+        else {
+            username = currentUser.member_email;
+            sessionID = null;
+            database = null;
+        }
+
+        if (!username) {
+            showAlert('Unable to get username. Please refresh the page.', 'danger');
+            return;
+        }
+
+        // Start validation job
+        showLoadingIndicator('Validating driver addresses...');
+
+        const response = await fetch(`${BACKEND_URL}/validate-driver-addresses`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                addresses: addressesToValidate,
+                session_id: sessionID,
+                database: database
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            hideLoadingIndicator();
+            throw new Error(data.error || 'Address validation failed to start');
+        }
+
+        if (data.success) {
+            // Poll for job status
+            await pollDriverAddressValidation(data.job_id);
+        } else {
+            hideLoadingIndicator();
+            throw new Error('Address validation failed to start');
+        }
+
+    } catch (error) {
+        hideLoadingIndicator();
+        console.error('Driver address validation error:', error);
+        showAlert(`Driver address validation failed: ${error.message}`, 'danger');
+    }
+}
+
+async function pollDriverAddressValidation(jobId) {
+    const maxPollTime = 60 * 1000; // 1 minute max
+    const pollInterval = 2000; // 2 seconds
+    const startTime = Date.now();
+
+    try {
+        while (Date.now() - startTime < maxPollTime) {
+            const response = await fetch(`${BACKEND_URL}/validation-status/${jobId}`);
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
+                }
+                throw new Error('Failed to check validation status');
+            }
+
+            const jobInfo = await response.json();
+
+            if (jobInfo.message && jobInfo.progress !== undefined) {
+                showLoadingIndicator(`${jobInfo.message} (${jobInfo.progress}%)`);
+            }
+
+            if (jobInfo.status === 'completed') {
+                hideLoadingIndicator();
+
+                if (jobInfo.result && jobInfo.result.success) {
+                    const result = jobInfo.result;
+
+                    if (result.invalid_addresses && result.invalid_addresses.length > 0) {
+                        showAlert(`${result.invalid_addresses.length} driver addresses need attention. Please review and correct them.`, 'warning');
+                        showDriverAddressValidationForm(result.valid_addresses, result.invalid_addresses);
+                    } else {
+                        // Update selected drivers with validated addresses
+                        updateDriverAddresses(result.valid_addresses);
+                        showAlert('All driver addresses validated successfully!', 'success');
+                        proceedToFileUpload();
+                    }
+                } else {
+                    throw new Error('Validation completed but returned no results');
+                }
+                return;
+
+            } else if (jobInfo.status === 'failed') {
+                hideLoadingIndicator();
+                throw new Error(jobInfo.error || 'Validation failed');
+            }
+
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+
+        hideLoadingIndicator();
+        throw new Error('Validation timed out');
+
+    } catch (error) {
+        hideLoadingIndicator();
+        console.error('Validation polling error:', error);
+        showAlert(`Address validation failed: ${error.message}`, 'danger');
+    }
+}
+
+function showDriverAddressValidationForm(validAddresses, invalidAddresses) {
+    const driverList = document.getElementById('driverList');
+    if (!driverList) return;
+
+    // Store valid addresses for later use
+    window.validDriverAddresses = validAddresses;
+    window.invalidDriverAddresses = invalidAddresses;
+
+    let formHtml = `
+        <div class="driver-address-validation-section">
+            <div class="alert alert-warning">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Driver Address Validation</h6>
+                <p>Some driver addresses need attention. Please review and correct them:</p>
+            </div>
+            <div class="invalid-addresses-list">
+    `;
+
+    invalidAddresses.forEach((address, index) => {
+        formHtml += `
+            <div class="invalid-address-item card mb-3">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="card-title">
+                                ${address.driver_name} 
+                                <span class="badge bg-primary">${address.type.toUpperCase()}</span>
+                            </h6>
+                            <p class="text-muted mb-2">
+                                <strong>Current Address:</strong> ${address.address}<br>
+                                ${address.lat && address.lng ? 
+                                    `<strong>Coordinates:</strong> ${address.lat.toFixed(6)}, ${address.lng.toFixed(6)}` : 
+                                    '<span class="text-danger">No coordinates found</span>'}
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Enter Corrected Address:</label>
+                            <input type="text" class="form-control corrected-driver-address" 
+                                id="corrected-${index}"
+                                value="${address.address}"
+                                data-driver-email="${address.driver_email}"
+                                data-address-type="${address.type}">
+                        </div>
+                        <div class="col-md-2">
+                            ${address.lat && address.lng ? `
+                                <button class="btn btn-info btn-sm" onclick="showLocationMap('driver-${index}', ${address.lat}, ${address.lng}, '${address.address.replace(/'/g, "\\'")}')">
+                                    <i class="fas fa-map-marker-alt me-1"></i>View Map
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    formHtml += `
+            </div>
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-secondary" onclick="cancelDriverValidation()">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <div>
+                    <button class="btn btn-warning me-2" onclick="proceedWithCurrentDriverAddresses()">
+                        <i class="fas fa-forward me-2"></i>Proceed with Current Addresses
+                    </button>
+                    <button class="btn btn-primary" onclick="submitCorrectedDriverAddresses()">
+                        <i class="fas fa-check me-2"></i>Validate Corrections
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    driverList.innerHTML = formHtml;
+}
+
+function updateDriverAddresses(validAddresses) {
+    // Update the selectedDrivers array with validated addresses
+    validAddresses.forEach(validAddr => {
+        const driver = selectedDrivers.find(d => d.member_email === validAddr.driver_email);
+        if (driver) {
+            if (validAddr.type === 'hq') {
+                driver.hq = validAddr.address;
+                driver.hq_lat = validAddr.lat;
+                driver.hq_lng = validAddr.lng;
+            } else if (validAddr.type === 'home') {
+                driver.home = validAddr.address;
+                driver.home_lat = validAddr.lat;
+                driver.home_lng = validAddr.lng;
+            }
+        }
+    });
+}
+
+function proceedToFileUpload() {
     currentStep = 3;
     updateStepIndicator(3);
-    
-    // Show address upload card
+    hideCard('driverSelectionCard');
     showCard('addressUploadCard');
-    
-    // Make sure file upload area is visible
-    const fileUploadArea = document.getElementById('fileUploadArea');
-    if (fileUploadArea) {
-        fileUploadArea.style.display = 'block';
-    }
+}
 
-    // Reset any previous file info
-    const fileInfo = document.getElementById('fileInfo');
-    if (fileInfo) {
-        fileInfo.classList.add('hidden');
-    }
+function cancelDriverValidation() {
+    // Clear stored addresses
+    window.validDriverAddresses = null;
+    window.invalidDriverAddresses = null;
 
-    // Setup file upload functionality
-    setupFileUpload();
+    // Re-render the driver selection list
+    renderDriverList();
+    showAlert('Address validation cancelled', 'warning');
+}
+
+async function submitCorrectedDriverAddresses() {
+    try {
+        const correctedAddresses = [];
+        const inputs = document.querySelectorAll('.corrected-driver-address');
+
+        inputs.forEach(input => {
+            correctedAddresses.push({
+                driver_email: input.getAttribute('data-driver-email'),
+                type: input.getAttribute('data-address-type'),
+                address: input.value.trim()
+            });
+        });
+
+        let username;
+        if (isGeotabEnvironment) {
+            username = await getCurrentUsername();
+        } else {
+            username = currentUser.member_email;
+        }
+
+        showLoadingIndicator('Validating corrected addresses...');
+
+        const response = await fetch(`${BACKEND_URL}/validate-driver-addresses`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                addresses: correctedAddresses
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Validation failed');
+        }
+
+        if (data.success) {
+            await pollDriverAddressValidation(data.job_id);
+        } else {
+            throw new Error('Validation failed to start');
+        }
+
+    } catch (error) {
+        hideLoadingIndicator();
+        console.error('Error validating corrected addresses:', error);
+        showAlert(`Validation failed: ${error.message}`, 'danger');
+    }
+}
+
+function proceedWithCurrentDriverAddresses() {
+    // Combine valid and invalid addresses
+    const allAddresses = [
+        ...(window.validDriverAddresses || []),
+        ...(window.invalidDriverAddresses || [])
+    ];
+
+    // Update driver addresses
+    updateDriverAddresses(allAddresses);
+
+    // Clear stored addresses
+    window.validDriverAddresses = null;
+    window.invalidDriverAddresses = null;
+
+    // Show warning about proceeding with invalid addresses
+    showAlert('Proceeding with current addresses. Some addresses may have low geocoding confidence.', 'warning');
+
+    // Proceed to file upload
+    proceedToFileUpload();
 }
 
 function setupFileUpload() {
