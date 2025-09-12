@@ -443,7 +443,7 @@ async function validateUserWithEmail(email, retryDelay = 3000) {
             if (!response.ok || !data.success) {
                 const errorMsg = data.error || 'User validation failed';
                 console.warn('Validation failed, retrying...', errorMsg);
-                showAlert(`Validation failed: ${errorMsg}. Retrying...`, 'warning');
+                //showAlert(`Validation failed: ${errorMsg}. Retrying...`, 'warning');
                 await sleep(retryDelay);
                 continue;
             }
@@ -603,7 +603,7 @@ async function validateUser(retryDelay = 3000) {
             if (!response.ok || !data.success) {
                 const errorMsg = data.error || 'User validation failed';
                 console.warn('Validation failed, retrying...', errorMsg);
-                showAlert(`Validation failed: ${errorMsg}. Retrying...`, 'warning');
+                //showAlert(`Validation failed: ${errorMsg}. Retrying...`, 'warning');
                 await sleep(retryDelay);
                 continue;
             }
