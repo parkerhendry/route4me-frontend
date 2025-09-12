@@ -419,31 +419,36 @@ async function startEmailValidation() {
 /**
  * Validate user credentials with Route4Me using verified email
  */
-async function validateUserWithEmail(email) {
+async function validateUserWithEmail(email, retryDelay = 3000) {
     console.log('Validating user credentials with email:', email);
     
-    try {
-        showLoadingInCard('userValidationCard', 'Validating user credentials...');
-        
-        const response = await fetch(`${BACKEND_URL}/validate-user`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                username: email // Use the verified email as username
-            })
-        });
-        
-        const data = await response.json();
+    while (true) {
+        try {
+            showLoadingInCard('userValidationCard', 'Validating user credentials...');
+            
+            const response = await fetch(`${BACKEND_URL}/validate-user`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: email // Use the verified email as username
+                })
+            });
+            
+            const data = await response.json();
 
-        console.log('User validation response:', data);
-        
-        if (!response.ok) {
-            throw new Error(data.error || 'Validation failed');
-        }
-        
-        if (data.success) {
+            console.log('User validation response:', data);
+            
+            if (!response.ok || !data.success) {
+                const errorMsg = data.error || 'User validation failed';
+                console.warn('Validation failed, retrying...', errorMsg);
+                showAlert(`Validation failed: ${errorMsg}. Retrying...`, 'warning');
+                await sleep(retryDelay);
+                continue;
+            }
+            
+            // Success case
             currentUser = data.user;
             subDrivers = data.sub_drivers || [];
             
@@ -456,15 +461,21 @@ async function validateUserWithEmail(email) {
             setTimeout(() => {
                 proceedToDriverSelection();
             }, 2000);
-        } else {
-            throw new Error('User validation failed');
+            
+            break; // Exit the retry loop on success
+            
+        } catch (error) {
+            console.error('User validation error:', error);
+            showAlert(`User validation failed: ${error.message}. Retrying...`, 'warning');
+            await sleep(retryDelay);
+            // Continue the loop to retry
         }
-        
-    } catch (error) {
-        console.error('User validation error:', error);
-        showAlert(`User validation failed: ${error.message}`, 'danger');
-        showValidationError(error.message);
     }
+}
+
+// Helper function to pause execution
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -557,41 +568,47 @@ function resetApplication() {
 /**
  * Validate user credentials with Route4Me (modified to handle email verification)
  */
-async function validateUser() {
+async function validateUser(retryDelay = 3000) {
     console.log('Validating user credentials...');
     console.log("Current user:", currentUser);
     
-    try {
-        const username = await getCurrentUsername();
-        
-        if (!username) {
-            showAlert('Unable to get user credentials. Please refresh the page.', 'danger');
-            return;
-        }
+    while (true) {
+        try {
+            const username = await getCurrentUsername();
+            
+            if (!username) {
+                showAlert('Unable to get user credentials. Retrying in a few seconds...', 'warning');
+                await sleep(retryDelay);
+                continue;
+            }
 
-        console.log('Current username/email:', username);
-        
-        showLoadingInCard('userValidationCard', 'Validating user credentials...');
-        
-        const response = await fetch(`${BACKEND_URL}/validate-user`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                username: username
-            })
-        });
-        
-        const data = await response.json();
+            console.log('Current username/email:', username);
+            
+            showLoadingInCard('userValidationCard', 'Validating user credentials...');
+            
+            const response = await fetch(`${BACKEND_URL}/validate-user`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username
+                })
+            });
+            
+            const data = await response.json();
 
-        console.log('User validation response:', data);
-        
-        if (!response.ok) {
-            throw new Error(data.error || 'Validation failed');
-        }
-        
-        if (data.success) {
+            console.log('User validation response:', data);
+            
+            if (!response.ok || !data.success) {
+                const errorMsg = data.error || 'User validation failed';
+                console.warn('Validation failed, retrying...', errorMsg);
+                showAlert(`Validation failed: ${errorMsg}. Retrying...`, 'warning');
+                await sleep(retryDelay);
+                continue;
+            }
+            
+            // Success case
             currentUser = data.user;
             subDrivers = data.sub_drivers || [];
             
@@ -604,14 +621,15 @@ async function validateUser() {
             setTimeout(() => {
                 proceedToDriverSelection();
             }, 2000);
-        } else {
-            throw new Error('User validation failed');
+            
+            break; // Exit the retry loop on success
+            
+        } catch (error) {
+            console.error('User validation error:', error);
+            showAlert(`User validation failed: ${error.message}. Retrying...`, 'warning');
+            await sleep(retryDelay);
+            // Continue the loop to retry
         }
-        
-    } catch (error) {
-        console.error('User validation error:', error);
-        showAlert(`User validation failed: ${error.message}`, 'danger');
-        showValidationError(error.message);
     }
 }
 
